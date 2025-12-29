@@ -63,6 +63,6 @@
 
 ## 6. 开发与测试
 - **静态检查**: Ktlint + Detekt。
-- **单元测试**: JUnit 5 + MockK (ViewModel & UseCases)。
+- **单元测试**: JUnit 4 + MockK (ViewModel & UseCases)，协程使用 `kotlinx-coroutines-test`。
 - **UI 测试**: Compose Test Rule + Espresso。
 

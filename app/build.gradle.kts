@@ -19,11 +19,22 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Allow overriding via:
+        //   ./gradlew :app:installDebug -PST_API_BASE_URL=http://10.0.2.2:8080/api/v1/
+        val apiBaseUrl = providers.gradleProperty("ST_API_BASE_URL")
+            .orElse("http://10.0.2.2:8080/api/v1/")
+            .get()
+        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+
+        // Default: release-safe. Debug overrides to true.
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
     }
 
     buildTypes {
         debug {
             isMinifyEnabled = false
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
         release {
             isMinifyEnabled = true
@@ -39,12 +50,14 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
@@ -81,6 +94,9 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
 
     // Instrumentation Testing
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.androidx.ui.test.junit4)
     androidTestImplementation(libs.mockk.android)
     androidTestImplementation(libs.hilt.android.testing)

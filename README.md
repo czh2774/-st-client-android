@@ -23,6 +23,16 @@
 - **网络**：使用 OkHttp / Retrofit，需处理 cookie-based auth（HttpOnly refresh cookie）。
 - **同步**：与服务端 `/api/v1/chat/*` 接口对齐。
 
+### 本地开发（Base URL）
+
+默认情况下，Android 会使用模拟器访问宿主机服务端：
+
+- `BuildConfig.API_BASE_URL` 默认：`http://10.0.2.2:8080/api/v1/`
+- 可通过 Gradle 参数覆盖：
+  - `./gradlew :app:installDebug -PST_API_BASE_URL=http://10.0.2.2:8080/api/v1/`
+
+Debug 构建允许明文 HTTP（便于连本地 dev server），Release 默认关闭明文流量。
+
 ## 代码风格
 
 - 使用 `ktlint` 或 `detekt` 进行静态检查。
