@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
+    implementation(libs.okhttp.sse) # 显式添加 SSE 支持
 
     // Database
     implementation(libs.room.runtime)
