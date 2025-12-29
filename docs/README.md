@@ -5,6 +5,6 @@
 ## 文档列表
 
 - [README.md](../README.md)：Android 模块总览
-- (待补充) 技术规格说明
+- [TECHNICAL_SPEC.md](TECHNICAL_SPEC.md)：原生技术规格说明书 (MAD Stack)
 - (待补充) 鉴权与 Cookie 处理方案
 
