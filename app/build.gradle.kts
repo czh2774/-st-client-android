@@ -11,6 +11,9 @@ android {
     namespace = "com.stproject.client.android"
     compileSdk = 35
 
+    val apiBaseUrlProvider = providers.gradleProperty("ST_API_BASE_URL")
+    val defaultCharacterIdProvider = providers.gradleProperty("ST_DEFAULT_CHARACTER_ID")
+
     defaultConfig {
         applicationId = "com.stproject.client.android"
         minSdk = 26
@@ -20,13 +23,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Allow overriding via:
-        //   ./gradlew :app:installDebug -PST_API_BASE_URL=http://10.0.2.2:8080/api/v1/
-        val apiBaseUrl = providers.gradleProperty("ST_API_BASE_URL")
-            .orElse("http://10.0.2.2:8080/api/v1/")
-            .get()
-        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
-
         // Default: release-safe. Debug overrides to true.
         manifestPlaceholders["usesCleartextTraffic"] = "false"
     }
@@ -35,10 +31,20 @@ android {
         debug {
             isMinifyEnabled = false
             manifestPlaceholders["usesCleartextTraffic"] = "true"
+            val apiBaseUrl = apiBaseUrlProvider
+                .orElse("http://10.0.2.2:8080/api/v1/")
+                .get()
+            val defaultCharacterId = defaultCharacterIdProvider.orElse("").get()
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            buildConfigField("String", "DEFAULT_CHARACTER_ID", "\"$defaultCharacterId\"")
         }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            val apiBaseUrl = apiBaseUrlProvider.orElse("__SET_ME__").get()
+            val defaultCharacterId = defaultCharacterIdProvider.orElse("").get()
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+            buildConfigField("String", "DEFAULT_CHARACTER_ID", "\"$defaultCharacterId\"")
         }
     }
     compileOptions {
@@ -51,6 +57,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    packaging {
+        resources {
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/LICENSE-notice.md"
+        }
     }
 }
 
@@ -86,14 +98,18 @@ dependencies {
 
     // Logging
     implementation(libs.timber)
+    implementation(libs.androidx.security.crypto)
+    implementation(libs.errorprone.annotations)
 
     // Unit Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 
     // Instrumentation Testing
+    androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.espresso.core)

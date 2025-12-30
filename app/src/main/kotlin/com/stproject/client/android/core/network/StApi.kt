@@ -12,11 +12,15 @@ interface StApi {
     @GET("health")
     suspend fun health(): ApiEnvelope<HealthDto>
 
+    @POST("chats")
+    suspend fun createChatSession(
+        @Body request: CreateChatSessionRequestDto
+    ): ApiEnvelope<CreateChatSessionResponseDto>
+
     @POST("chats/{sessionId}/completion")
     suspend fun createChatCompletion(
         @Path("sessionId") sessionId: String,
         @Body request: ChatCompletionRequestDto
     ): ApiEnvelope<ChatCompletionResponseDto>
 }
-
 

@@ -1,5 +1,6 @@
 package com.stproject.client.android.features.chat
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,9 +20,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatRole
+
+private const val SEND_BUTTON_TEST_TAG = "chat.send"
 
 @Composable
 fun ChatScreen(viewModel: ChatViewModel) {
@@ -29,6 +33,16 @@ fun ChatScreen(viewModel: ChatViewModel) {
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
+            if (uiState.error != null) {
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.errorContainer)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = uiState.error ?: "",
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -50,7 +64,11 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     enabled = !uiState.isSending,
                     label = { Text("Message") }
                 )
-                Button(onClick = viewModel::onSendClicked, enabled = !uiState.isSending) {
+                Button(
+                    modifier = Modifier.testTag(SEND_BUTTON_TEST_TAG),
+                    onClick = viewModel::onSendClicked,
+                    enabled = !uiState.isSending
+                ) {
                     if (uiState.isSending) {
                         CircularProgressIndicator(
                             modifier = Modifier.padding(end = 8.dp),

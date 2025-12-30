@@ -1,6 +1,8 @@
 package com.stproject.client.android.core.network
 
 import com.google.gson.Gson
+import com.stproject.client.android.core.common.rethrowIfCancellation
+import java.io.IOException
 import retrofit2.HttpException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,16 +17,24 @@ class ApiClient @Inject constructor() {
             val code = env.code
             val data = env.data
             if (code != 200) {
+                val userMessage = ApiErrorMessageMapper.toUserMessage(
+                    httpStatus = 200,
+                    apiCode = code,
+                    errorDetailCode = null,
+                    fallback = "request failed"
+                )
                 throw ApiException(
                     httpStatus = 200,
                     apiCode = code,
-                    message = "api error (code=$code)"
+                    message = "api error (code=$code)",
+                    userMessage = userMessage
                 )
             }
             return data ?: throw ApiException(
                 httpStatus = 200,
                 apiCode = code,
-                message = "api error: missing data"
+                message = "api error: missing data",
+                userMessage = "request failed"
             )
         } catch (e: HttpException) {
             val httpStatus = e.code()
@@ -33,15 +43,39 @@ class ApiClient @Inject constructor() {
 
             val errorDetailCode = parsed?.errorDetail?.code
             val msg = parsed?.message ?: parsed?.msg ?: parsed?.error ?: e.message()
+            val userMessage = ApiErrorMessageMapper.toUserMessage(
+                httpStatus = httpStatus,
+                apiCode = parsed?.code,
+                errorDetailCode = errorDetailCode,
+                fallback = msg
+            )
 
             throw ApiException(
                 httpStatus = httpStatus,
                 apiCode = parsed?.code,
                 errorDetailCode = errorDetailCode,
-                message = msg ?: "http error ($httpStatus)"
+                message = msg ?: "http error ($httpStatus)",
+                userMessage = userMessage
+            )
+        } catch (e: IOException) {
+            // Network failures (timeouts, no network, DNS, etc.)
+            throw ApiException(
+                httpStatus = null,
+                apiCode = null,
+                errorDetailCode = null,
+                message = "network error: ${e.message ?: "io failure"}",
+                userMessage = "network error"
+            )
+        } catch (e: Exception) {
+            e.rethrowIfCancellation()
+            // Keep a stable app-level exception; do not leak details by default.
+            throw ApiException(
+                httpStatus = null,
+                apiCode = null,
+                errorDetailCode = null,
+                message = "unexpected error",
+                userMessage = "unexpected error"
             )
         }
     }
 }
-
-

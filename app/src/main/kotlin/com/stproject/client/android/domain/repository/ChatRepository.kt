@@ -6,6 +6,6 @@ import kotlinx.coroutines.flow.Flow
 interface ChatRepository {
     val messages: Flow<List<ChatMessage>>
     suspend fun sendUserMessage(content: String)
+    suspend fun clearLocalSession()
 }
-
 

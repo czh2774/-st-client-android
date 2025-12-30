@@ -48,6 +48,9 @@ class InMemoryChatRepository @Inject constructor() : ChatRepository {
         )
         _messages.value = _messages.value + assistant
     }
-}
 
+    override suspend fun clearLocalSession() {
+        _messages.value = emptyList()
+    }
+}
 

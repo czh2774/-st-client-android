@@ -2,6 +2,8 @@ package com.stproject.client.android.features.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.stproject.client.android.core.common.rethrowIfCancellation
+import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.ChatRepository
 import com.stproject.client.android.domain.usecase.SendUserMessageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,13 +23,15 @@ class ChatViewModel @Inject constructor(
 ) : ViewModel() {
     private val input = MutableStateFlow("")
     private val isSending = MutableStateFlow(false)
+    private val error = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<ChatUiState> =
-        combine(chatRepository.messages, input, isSending) { messages, inputText, sending ->
+        combine(chatRepository.messages, input, isSending, error) { messages, inputText, sending, errorText ->
             ChatUiState(
                 messages = messages,
                 input = inputText,
-                isSending = sending
+                isSending = sending,
+                error = errorText
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
 
@@ -38,17 +42,24 @@ class ChatViewModel @Inject constructor(
     fun onSendClicked() {
         val content = input.value.trim()
         if (content.isEmpty()) return
+        if (isSending.value) return
+
+        // Update UI state synchronously for immediate feedback and stable tests.
+        isSending.value = true
+        error.value = null
 
         viewModelScope.launch {
-            isSending.value = true
             try {
                 sendUserMessage(content)
                 input.value = ""
+            } catch (e: ApiException) {
+                error.value = e.userMessage ?: e.message
+            } catch (e: Exception) {
+                e.rethrowIfCancellation()
+                error.value = "unexpected error"
             } finally {
                 isSending.value = false
             }
         }
     }
 }
-
-
