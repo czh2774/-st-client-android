@@ -6,5 +6,5 @@ data class AuthUiState(
     val isSubmitting: Boolean = false,
     val isRestoring: Boolean = false,
     val error: String? = null,
-    val isAuthenticated: Boolean = false
+    val isAuthenticated: Boolean = false,
 )

@@ -14,7 +14,10 @@ import java.util.concurrent.ConcurrentHashMap
 class InMemoryCookieJar : CookieJar {
     private val store = ConcurrentHashMap<String, List<Cookie>>()
 
-    override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+    override fun saveFromResponse(
+        url: HttpUrl,
+        cookies: List<Cookie>,
+    ) {
         store[url.host] = cookies
     }
 
@@ -24,5 +27,3 @@ class InMemoryCookieJar : CookieJar {
         return cookies
     }
 }
-
-

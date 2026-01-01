@@ -7,12 +7,13 @@ import org.junit.Test
 class ChatCompletionRequestDtoTest {
     @Test
     fun `serializes client message ids`() {
-        val dto = ChatCompletionRequestDto(
-            message = "hello",
-            stream = true,
-            clientMessageId = "local-user-1",
-            clientAssistantMessageId = "local-assistant-1"
-        )
+        val dto =
+            ChatCompletionRequestDto(
+                message = "hello",
+                stream = true,
+                clientMessageId = "local-user-1",
+                clientAssistantMessageId = "local-assistant-1",
+            )
 
         val json = Gson().toJson(dto)
 

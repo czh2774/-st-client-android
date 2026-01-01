@@ -13,6 +13,8 @@ android {
 
     val apiBaseUrlProvider = providers.gradleProperty("ST_API_BASE_URL")
     val defaultCharacterIdProvider = providers.gradleProperty("ST_DEFAULT_CHARACTER_ID")
+    val privacyUrlProvider = providers.gradleProperty("ST_PRIVACY_URL")
+    val termsUrlProvider = providers.gradleProperty("ST_TERMS_URL")
 
     defaultConfig {
         applicationId = "com.stproject.client.android"
@@ -31,20 +33,50 @@ android {
         debug {
             isMinifyEnabled = false
             manifestPlaceholders["usesCleartextTraffic"] = "true"
-            val apiBaseUrl = apiBaseUrlProvider
-                .orElse("http://10.0.2.2:8080/api/v1/")
-                .get()
-            val defaultCharacterId = defaultCharacterIdProvider.orElse("").get()
+            val apiBaseUrl =
+                apiBaseUrlProvider
+                    .orElse("http://10.0.2.2:8080/api/v1/")
+                    .get()
+            val defaultCharacterId =
+                defaultCharacterIdProvider
+                    .orElse("")
+                    .get()
+            val privacyUrl =
+                privacyUrlProvider
+                    .orElse("https://nea-i.com/privacy")
+                    .get()
+            val termsUrl =
+                termsUrlProvider
+                    .orElse("https://nea-i.com/terms")
+                    .get()
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("String", "DEFAULT_CHARACTER_ID", "\"$defaultCharacterId\"")
+            buildConfigField("String", "PRIVACY_URL", "\"$privacyUrl\"")
+            buildConfigField("String", "TERMS_URL", "\"$termsUrl\"")
         }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            val apiBaseUrl = apiBaseUrlProvider.orElse("__SET_ME__").get()
-            val defaultCharacterId = defaultCharacterIdProvider.orElse("").get()
+            val apiBaseUrl =
+                apiBaseUrlProvider
+                    .orElse("__SET_ME__")
+                    .get()
+            val defaultCharacterId =
+                defaultCharacterIdProvider
+                    .orElse("")
+                    .get()
+            val privacyUrl =
+                privacyUrlProvider
+                    .orElse("__SET_ME__")
+                    .get()
+            val termsUrl =
+                termsUrlProvider
+                    .orElse("__SET_ME__")
+                    .get()
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("String", "DEFAULT_CHARACTER_ID", "\"$defaultCharacterId\"")
+            buildConfigField("String", "PRIVACY_URL", "\"$privacyUrl\"")
+            buildConfigField("String", "TERMS_URL", "\"$termsUrl\"")
         }
     }
     compileOptions {
@@ -76,6 +108,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.navigation.compose)
 
     // Hilt
     implementation(libs.hilt.android)
@@ -100,6 +133,7 @@ dependencies {
     implementation(libs.timber)
     implementation(libs.androidx.security.crypto)
     implementation(libs.errorprone.annotations)
+    implementation(libs.billing.ktx)
 
     // Unit Testing
     testImplementation("junit:junit:4.13.2")

@@ -6,11 +6,10 @@ data class ChatCompletionRequestDto(
     val worldInfoMinActivations: Int? = null,
     val worldInfoMinActivationsDepthMax: Int? = null,
     val clientMessageId: String? = null,
-    val clientAssistantMessageId: String? = null
+    val clientAssistantMessageId: String? = null,
 )
 
 data class ChatCompletionResponseDto(
     val content: String,
-    val finishReason: String
+    val finishReason: String,
 )
-

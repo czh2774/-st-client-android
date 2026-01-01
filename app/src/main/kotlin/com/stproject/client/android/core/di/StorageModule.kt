@@ -18,34 +18,53 @@ object StorageModule {
     @Provides
     @Singleton
     @Named("auth_prefs")
-    fun provideAuthPrefs(@ApplicationContext context: Context): SharedPreferences {
+    fun provideAuthPrefs(
+        @ApplicationContext context: Context,
+    ): SharedPreferences {
         return createEncryptedPrefs(context, "st_auth_prefs")
     }
 
     @Provides
     @Singleton
     @Named("cookie_prefs")
-    fun provideCookiePrefs(@ApplicationContext context: Context): SharedPreferences {
+    fun provideCookiePrefs(
+        @ApplicationContext context: Context,
+    ): SharedPreferences {
         return createEncryptedPrefs(context, "st_cookie_prefs")
     }
 
     @Provides
     @Singleton
     @Named("chat_session_prefs")
-    fun provideChatSessionPrefs(@ApplicationContext context: Context): SharedPreferences {
+    fun provideChatSessionPrefs(
+        @ApplicationContext context: Context,
+    ): SharedPreferences {
         return createEncryptedPrefs(context, "st_chat_session_prefs")
     }
 
-    private fun createEncryptedPrefs(context: Context, name: String): SharedPreferences {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
+    @Provides
+    @Singleton
+    @Named("user_prefs")
+    fun provideUserPrefs(
+        @ApplicationContext context: Context,
+    ): SharedPreferences {
+        return createEncryptedPrefs(context, "st_user_prefs")
+    }
+
+    private fun createEncryptedPrefs(
+        context: Context,
+        name: String,
+    ): SharedPreferences {
+        val masterKey =
+            MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
         return EncryptedSharedPreferences.create(
             context,
             name,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
     }
 }

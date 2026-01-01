@@ -12,6 +12,5 @@ class ApiException(
     val apiCode: Int? = null,
     val errorDetailCode: String? = null,
     override val message: String,
-    val userMessage: String? = null
+    val userMessage: String? = null,
 ) : RuntimeException(message)
-

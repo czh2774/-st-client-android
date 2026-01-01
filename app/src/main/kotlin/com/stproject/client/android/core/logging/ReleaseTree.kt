@@ -10,7 +10,12 @@ import timber.log.Timber
  * Replace with crash reporting integration once available.
  */
 class ReleaseTree : Timber.Tree() {
-    override fun log(priority: Int, tag: String?, message: String, t: Throwable?) {
+    override fun log(
+        priority: Int,
+        tag: String?,
+        message: String,
+        t: Throwable?,
+    ) {
         if (priority < Log.WARN) return
 
         // Keep it conservative; platform logging can still be captured on rooted devices.
@@ -22,5 +27,3 @@ class ReleaseTree : Timber.Tree() {
         }
     }
 }
-
-

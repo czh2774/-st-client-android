@@ -9,7 +9,16 @@ import com.stproject.client.android.core.network.ClientHeadersInterceptor
 import com.stproject.client.android.core.network.StApi
 import com.stproject.client.android.core.network.StAuthApi
 import com.stproject.client.android.core.network.StBaseUrlProvider
+import com.stproject.client.android.core.network.StCharacterApi
+import com.stproject.client.android.core.network.StCreatorApi
+import com.stproject.client.android.core.network.StCreatorAssistantApi
+import com.stproject.client.android.core.network.StIapApi
+import com.stproject.client.android.core.network.StNotificationApi
 import com.stproject.client.android.core.network.StOkHttpClientFactory
+import com.stproject.client.android.core.network.StReportApi
+import com.stproject.client.android.core.network.StSocialApi
+import com.stproject.client.android.core.network.StUserApi
+import com.stproject.client.android.core.network.StWalletApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -44,7 +53,7 @@ object NetworkModule {
     @Singleton
     fun provideAuthAuthenticator(
         tokenStore: AuthTokenStore,
-        refreshCoordinator: AuthRefreshCoordinator
+        refreshCoordinator: AuthRefreshCoordinator,
     ): AuthAuthenticator = AuthAuthenticator(tokenStore, refreshCoordinator)
 
     @Provides
@@ -54,16 +63,17 @@ object NetworkModule {
         headersInterceptor: ClientHeadersInterceptor,
         authInterceptor: AuthInterceptor,
         authenticator: AuthAuthenticator,
-        cookieJar: CookieJar
+        cookieJar: CookieJar,
     ): OkHttpClient {
         return factory.create(
             cookieJar = cookieJar,
-            additionalInterceptors = listOfNotNull(
-                headersInterceptor,
-                authInterceptor,
-                createHttpLoggingInterceptor()
-            ),
-            authenticator = authenticator
+            additionalInterceptors =
+                listOfNotNull(
+                    headersInterceptor,
+                    authInterceptor,
+                    createHttpLoggingInterceptor(),
+                ),
+            authenticator = authenticator,
         )
     }
 
@@ -73,14 +83,15 @@ object NetworkModule {
     fun provideAuthOkHttpClient(
         factory: StOkHttpClientFactory,
         headersInterceptor: ClientHeadersInterceptor,
-        cookieJar: CookieJar
+        cookieJar: CookieJar,
     ): OkHttpClient {
         return factory.create(
             cookieJar = cookieJar,
-            additionalInterceptors = listOfNotNull(
-                headersInterceptor,
-                createHttpLoggingInterceptor()
-            )
+            additionalInterceptors =
+                listOfNotNull(
+                    headersInterceptor,
+                    createHttpLoggingInterceptor(),
+                ),
         )
     }
 
@@ -88,7 +99,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(
         okHttpClient: OkHttpClient,
-        baseUrlProvider: StBaseUrlProvider
+        baseUrlProvider: StBaseUrlProvider,
     ): Retrofit {
         return Retrofit.Builder()
             .baseUrl(baseUrlProvider.baseUrl())
@@ -103,10 +114,47 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideStUserApi(retrofit: Retrofit): StUserApi = retrofit.create(StUserApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStReportApi(retrofit: Retrofit): StReportApi = retrofit.create(StReportApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStCharacterApi(retrofit: Retrofit): StCharacterApi = retrofit.create(StCharacterApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStCreatorApi(retrofit: Retrofit): StCreatorApi = retrofit.create(StCreatorApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStCreatorAssistantApi(retrofit: Retrofit): StCreatorAssistantApi =
+        retrofit.create(StCreatorAssistantApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStNotificationApi(retrofit: Retrofit): StNotificationApi = retrofit.create(StNotificationApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStSocialApi(retrofit: Retrofit): StSocialApi = retrofit.create(StSocialApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStIapApi(retrofit: Retrofit): StIapApi = retrofit.create(StIapApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStWalletApi(retrofit: Retrofit): StWalletApi = retrofit.create(StWalletApi::class.java)
+
+    @Provides
+    @Singleton
     @Named("auth")
     fun provideAuthRetrofit(
         @Named("auth") okHttpClient: OkHttpClient,
-        baseUrlProvider: StBaseUrlProvider
+        baseUrlProvider: StBaseUrlProvider,
     ): Retrofit {
         return Retrofit.Builder()
             .baseUrl(baseUrlProvider.baseUrl())
@@ -117,8 +165,9 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideStAuthApi(@Named("auth") retrofit: Retrofit): StAuthApi {
+    fun provideStAuthApi(
+        @Named("auth") retrofit: Retrofit,
+    ): StAuthApi {
         return retrofit.create(StAuthApi::class.java)
     }
 }
-

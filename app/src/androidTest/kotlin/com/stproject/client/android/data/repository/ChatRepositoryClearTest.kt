@@ -28,46 +28,51 @@ class ChatRepositoryClearTest {
     }
 
     @Test
-    fun clearLocalSessionClearsStoreAndMessages() = runBlocking {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        db = Room.inMemoryDatabaseBuilder(context, ChatDatabase::class.java)
-            .allowMainThreadQueries()
-            .build()
-        val dao = requireNotNull(db).chatMessageDao()
-        val prefs = context.getSharedPreferences("test_chat_session_prefs", Context.MODE_PRIVATE)
-        prefs.edit().clear().apply()
-        val store = SharedPreferencesChatSessionStore(prefs)
-        store.setSessionId("s1")
-        store.setClientSessionId("client-1")
-        store.setSessionUpdatedAtMs(1234L)
+    fun clearLocalSessionClearsStoreAndMessages() =
+        runBlocking {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            db =
+                Room.inMemoryDatabaseBuilder(context, ChatDatabase::class.java)
+                    .allowMainThreadQueries()
+                    .build()
+            val dao = requireNotNull(db).chatMessageDao()
+            val sessionDao = requireNotNull(db).chatSessionDao()
+            val prefs = context.getSharedPreferences("test_chat_session_prefs", Context.MODE_PRIVATE)
+            prefs.edit().clear().apply()
+            val store = SharedPreferencesChatSessionStore(prefs)
+            store.setSessionId("s1")
+            store.setClientSessionId("client-1")
+            store.setSessionUpdatedAtMs(1234L)
 
-        dao.upsert(
-            ChatMessageEntity(
-                id = "local-1",
-                sessionId = "s1",
-                serverId = null,
-                role = ChatRole.User.name,
-                content = "hello",
-                createdAt = 1,
-                isStreaming = false
+            dao.upsert(
+                ChatMessageEntity(
+                    id = "local-1",
+                    sessionId = "s1",
+                    serverId = null,
+                    role = ChatRole.User.name,
+                    content = "hello",
+                    createdAt = 1,
+                    isStreaming = false,
+                ),
             )
-        )
 
-        val repo = HttpChatRepository(
-            api = mockk(relaxed = true),
-            apiClient = mockk(relaxed = true),
-            okHttpClient = OkHttpClient(),
-            baseUrlProvider = mockk(relaxed = true),
-            messageDao = dao,
-            sessionStore = store
-        )
+            val repo =
+                HttpChatRepository(
+                    api = mockk(relaxed = true),
+                    apiClient = mockk(relaxed = true),
+                    okHttpClient = OkHttpClient(),
+                    baseUrlProvider = mockk(relaxed = true),
+                    messageDao = dao,
+                    sessionDao = sessionDao,
+                    sessionStore = store,
+                )
 
-        repo.clearLocalSession()
+            repo.clearLocalSession()
 
-        assertNull(store.getSessionId())
-        assertNull(store.getClientSessionId())
-        assertNull(store.getSessionUpdatedAtMs())
-        val remaining = dao.observeMessages("s1").first()
-        assertTrue(remaining.isEmpty())
-    }
+            assertNull(store.getSessionId())
+            assertNull(store.getClientSessionId())
+            assertNull(store.getSessionUpdatedAtMs())
+            val remaining = dao.observeMessages("s1").first()
+            assertTrue(remaining.isEmpty())
+        }
 }

@@ -1,16 +1,16 @@
 package com.stproject.client.android.core.network
 
+import okhttp3.Authenticator
 import okhttp3.CookieJar
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
-import okhttp3.Authenticator
 import java.util.concurrent.TimeUnit
 
 class StOkHttpClientFactory {
     fun create(
         cookieJar: CookieJar,
         additionalInterceptors: List<Interceptor> = emptyList(),
-        authenticator: Authenticator? = null
+        authenticator: Authenticator? = null,
     ): OkHttpClient {
         return OkHttpClient.Builder()
             .cookieJar(cookieJar)
@@ -28,4 +28,3 @@ class StOkHttpClientFactory {
             .build()
     }
 }
-

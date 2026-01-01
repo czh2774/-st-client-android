@@ -7,8 +7,8 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "chat_messages",
     indices = [
-        Index(value = ["sessionId", "createdAt"])
-    ]
+        Index(value = ["sessionId", "createdAt"]),
+    ],
 )
 data class ChatMessageEntity(
     @PrimaryKey val id: String,
@@ -17,5 +17,8 @@ data class ChatMessageEntity(
     val role: String,
     val content: String,
     val createdAt: Long,
-    val isStreaming: Boolean
+    val isStreaming: Boolean,
+    val swipeId: Int? = null,
+    val swipesJson: String? = null,
+    val metadataJson: String? = null,
 )

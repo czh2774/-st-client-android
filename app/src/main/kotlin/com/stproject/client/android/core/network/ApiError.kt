@@ -9,12 +9,10 @@ data class ApiError(
     val msg: String? = null,
     val message: String? = null,
     val error: String? = null,
-    val errorDetail: ApiErrorDetail? = null
+    val errorDetail: ApiErrorDetail? = null,
 )
 
 data class ApiErrorDetail(
     val code: String? = null,
-    val message: String? = null
+    val message: String? = null,
 )
-
-

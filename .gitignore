@@ -9,3 +9,7 @@ build/
 
 # Local
 local.properties
+
+# Local caches / temp
+.tmp/
+.kotlin/

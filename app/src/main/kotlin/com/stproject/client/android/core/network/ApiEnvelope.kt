@@ -6,7 +6,5 @@ package com.stproject.client.android.core.network
  */
 data class ApiEnvelope<T>(
     val code: Int,
-    val data: T?
+    val data: T?,
 )
-
-

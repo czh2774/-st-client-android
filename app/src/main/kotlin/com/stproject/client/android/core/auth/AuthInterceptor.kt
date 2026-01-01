@@ -4,7 +4,7 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 class AuthInterceptor(
-    private val tokenStore: AuthTokenStore
+    private val tokenStore: AuthTokenStore,
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -18,10 +18,11 @@ class AuthInterceptor(
             return chain.proceed(request)
         }
 
-        val req = request
-            .newBuilder()
-            .header("Authorization", "Bearer $token")
-            .build()
+        val req =
+            request
+                .newBuilder()
+                .header("Authorization", "Bearer $token")
+                .build()
         return chain.proceed(req)
     }
 }

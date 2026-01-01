@@ -5,12 +5,13 @@ object ApiErrorMessageMapper {
         httpStatus: Int?,
         apiCode: Int?,
         errorDetailCode: String?,
-        fallback: String?
+        fallback: String?,
     ): String {
         when (errorDetailCode) {
             "INSUFFICIENT_BALANCE" -> return "insufficient balance"
             "INVALID_PRODUCT" -> return "invalid product"
             "rate_limit_exceeded" -> return "rate limited"
+            "CREATOR_ASSISTANT_DISABLED" -> return "creator assistant disabled"
         }
         return when {
             httpStatus == 401 -> "unauthorized"

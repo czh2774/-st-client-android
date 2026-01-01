@@ -18,5 +18,3 @@ fun createHttpLoggingInterceptor(): HttpLoggingInterceptor? {
         redactHeader("X-Csrf-Token")
     }
 }
-
-

@@ -10,4 +10,3 @@ abstract class BaseUnitTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 }
-

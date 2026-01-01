@@ -1,4 +1,211 @@
 <resources>
     <string name="app_name">ST Client</string>
-</resources>
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_confirm">Confirm</string>
+    <string name="common_close">Close</string>
+    <string name="common_copy">Copy</string>
+    <string name="common_details">Details</string>
+    <string name="common_follow">Follow</string>
+    <string name="common_unfollow">Unfollow</string>
+    <string name="common_block">Block</string>
+    <string name="common_unblock">Unblock</string>
+    <string name="common_report">Report</string>
+    <string name="common_open">Open</string>
+    <string name="common_ok">OK</string>
+    <string name="common_loading">Loading...</string>
+    <string name="common_load_more">Load More</string>
+    <string name="common_refresh">Refresh</string>
+    <string name="common_search">Search</string>
+    <string name="common_reload">Reload</string>
+    <string name="common_continue">Continue</string>
+    <string name="common_message">Message</string>
+    <string name="common_send">Send</string>
+    <string name="common_share">Share</string>
+    <string name="common_start_chat">Start Chat</string>
+    <string name="common_chat">Chat</string>
+    <string name="compliance_loading">Completing compliance checks...</string>
+    <string name="content_mature_disabled_title">Mature content disabled</string>
+    <string name="content_mature_disabled_body">Enable 18+ content in Settings to continue.</string>
+    <string name="content_mature_disabled_inline">Mature content disabled. Enable 18+ content in Settings.</string>
+    <string name="content_nsfw_label">18+ content</string>
+    <string name="content_restricted_notice">18+ content. Report if this violates policy.</string>
 
+    <string name="main_tab_explore">Explore</string>
+    <string name="main_tab_chat">Chat</string>
+    <string name="main_tab_creators">Creators</string>
+    <string name="main_tab_notifications">Notifications</string>
+    <string name="main_tab_social">Social</string>
+    <string name="main_tab_profile">Profile</string>
+    <string name="main_tab_shop">Shop</string>
+    <string name="main_tab_wallet">Wallet</string>
+    <string name="main_tab_settings">Settings</string>
+    <string name="main_tab_logout">Logout</string>
+
+    <string name="chat_nav_chats">Chats</string>
+    <string name="chat_action_share">Share</string>
+    <string name="chat_action_report">Report</string>
+    <string name="chat_action_block">Block</string>
+    <string name="chat_regenerate">Regenerate</string>
+    <string name="chat_continue">Continue</string>
+    <string name="chat_delete">Delete</string>
+    <string name="chat_delete_after">Delete After</string>
+    <string name="chat_input_label">Message</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_block_title">Block character?</string>
+    <string name="chat_block_body">You will no longer see this character in explore or chat.</string>
+    <string name="chat_block_confirm">Block</string>
+    <string name="chat_delete_title">Delete message?</string>
+    <string name="chat_delete_after_title">Delete from here?</string>
+    <string name="chat_delete_body">This will delete the selected message.</string>
+    <string name="chat_delete_after_body">This will delete this message and everything after it.</string>
+    <string name="chat_share_title">Share character</string>
+    <string name="chat_share_link_label">Share link: %1$s</string>
+    <string name="chat_share_code_label">Share code: %1$s</string>
+    <string name="chat_app_link_label">App link: %1$s</string>
+    <string name="chat_copy_app_link">Copy app link</string>
+    <string name="chat_swipe_label">Swipe %1$d/%2$d</string>
+    <string name="chat_swipe_prev">Prev</string>
+    <string name="chat_swipe_next">Next</string>
+    <string name="chat_swipe_delete">Delete Swipe</string>
+    <string name="chat_label_system">SYS</string>
+    <string name="chat_label_user">YOU</string>
+    <string name="chat_label_assistant">BOT</string>
+    <string name="chat_share_code_inline">Share code: %1$s</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_privacy_title">Privacy</string>
+    <string name="settings_privacy_policy">Privacy Policy</string>
+    <string name="settings_terms">Terms of Service</string>
+    <string name="settings_age_title">Age Verification</string>
+    <string name="settings_age_verified">Verified</string>
+    <string name="settings_age_not_verified">Not verified</string>
+    <string name="settings_age_verify_button">Verify Age</string>
+    <string name="settings_content_title">Content</string>
+    <string name="settings_content_allow_mature">Allow mature content (18+)</string>
+    <string name="settings_content_verify_hint">Verify age to enable.</string>
+    <string name="settings_account_title">Account</string>
+    <string name="settings_account_delete">Delete Account</string>
+    <string name="settings_delete_title">Delete account?</string>
+    <string name="settings_delete_body">This action cannot be undone.</string>
+    <string name="settings_delete_confirm">Delete</string>
+    <string name="settings_theme_title">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_language_title">Language</string>
+    <string name="settings_language_system">System</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_zh_cn">Chinese (Simplified)</string>
+
+    <string name="age_verify_title">Age verification</string>
+    <string name="age_verify_birth_label">Birth date (YYYY-MM-DD)</string>
+    <string name="age_verify_confirm">Confirm</string>
+    <string name="age_verify_invalid">Enter a valid date.</string>
+    <string name="age_verify_restricted_title">Access restricted</string>
+    <string name="age_verify_restricted_body">This app is 18+. You cannot continue.</string>
+
+    <string name="privacy_dialog_title">Privacy &amp; Terms</string>
+    <string name="privacy_dialog_body">Please review and accept the Privacy Policy and Terms of Service.</string>
+    <string name="privacy_accept">Accept</string>
+    <string name="privacy_decline">Decline</string>
+
+    <string name="explore_share_title">Join with share code</string>
+    <string name="explore_share_label">Share code or link</string>
+    <string name="explore_share_join">Join</string>
+    <string name="explore_followers">Followers: %1$d</string>
+
+    <string name="chats_updated">Updated: %1$s</string>
+
+    <string name="character_creator">Creator: %1$s</string>
+    <string name="character_followers">Followers: %1$d</string>
+    <string name="character_tags">Tags: %1$s</string>
+
+    <string name="creator_characters_title">Creator Characters</string>
+
+    <string name="creators_title">Creators</string>
+    <string name="creators_assistant">Creator Assistant</string>
+    <string name="creators_search_label">Search creators</string>
+    <string name="creators_followers_interactions">Followers: %1$d - Interactions: %2$d</string>
+    <string name="creators_characters">Characters</string>
+
+    <string name="assistant_title">Creator Assistant</string>
+    <string name="assistant_new_session">New Session</string>
+    <string name="assistant_untitled_session">Untitled session</string>
+    <string name="assistant_status">Status: %1$s</string>
+    <string name="assistant_updated">Updated: %1$s</string>
+    <string name="assistant_generate_draft">Generate Draft</string>
+    <string name="assistant_generating">Generating...</string>
+    <string name="assistant_publish">Publish</string>
+    <string name="assistant_publishing">Publishing...</string>
+    <string name="assistant_draft_ready">Draft is ready. You can generate it now.</string>
+    <string name="assistant_published">Published: %1$s</string>
+    <string name="assistant_sending">Sending...</string>
+    <string name="assistant_draft_preview">Draft Preview</string>
+    <string name="assistant_draft_name">Name: %1$s</string>
+    <string name="assistant_draft_description">Description: %1$s</string>
+    <string name="assistant_draft_greeting">Greeting: %1$s</string>
+    <string name="assistant_draft_personality">Personality: %1$s</string>
+    <string name="assistant_draft_scenario">Scenario: %1$s</string>
+    <string name="assistant_draft_tags">Tags: %1$s</string>
+    <string name="assistant_draft_nsfw">NSFW: %1$s</string>
+    <string name="assistant_draft_confidence">Confidence: %1$.2f</string>
+    <string name="assistant_draft_missing">Missing: %1$s</string>
+
+    <string name="notifications_title">Notifications</string>
+    <string name="notifications_unread">Unread: %1$d</string>
+    <string name="notifications_mark_all_read">Mark all read</string>
+    <string name="notifications_mark_read">Mark read</string>
+    <string name="notifications_read">Read</string>
+    <string name="notifications_type_general">general</string>
+
+    <string name="profile_title">Profile</string>
+    <string name="profile_user_id">User ID: %1$s</string>
+    <string name="profile_email">Email: %1$s</string>
+    <string name="profile_tos_version">TOS version: %1$s</string>
+    <string name="profile_tos_accepted">TOS accepted: %1$s</string>
+
+    <string name="social_title">Social</string>
+    <string name="social_tab_followers">Followers</string>
+    <string name="social_tab_following">Following</string>
+    <string name="social_tab_blocked">Blocked</string>
+    <string name="social_target_user">Target user id (optional)</string>
+    <string name="social_follow_block_title">Follow / Block</string>
+    <string name="social_user_id">User id</string>
+    <string name="social_followers_count">Followers: %1$d</string>
+    <string name="social_followers_unknown">Followers: -</string>
+
+    <string name="shop_title">Shop</string>
+    <string name="shop_restore_purchases">Restore Purchases</string>
+    <string name="shop_restoring">Restoring...</string>
+    <string name="shop_price_label">Price: %1$s</string>
+    <string name="shop_price_unknown">Price: -</string>
+    <string name="shop_buy">Buy</string>
+
+    <string name="wallet_title">Wallet</string>
+    <string name="wallet_balance_title">Balance</string>
+    <string name="wallet_balance_credits">Credits: %1$d</string>
+    <string name="wallet_balance_currency">Currency: %1$s</string>
+    <string name="wallet_balance_diamonds">Diamonds: %1$d</string>
+    <string name="wallet_transactions_title">Transactions</string>
+    <string name="wallet_transactions_empty">No transactions.</string>
+    <string name="wallet_transaction_type">Type: %1$s</string>
+    <string name="wallet_transaction_amount">Amount: %1$d</string>
+    <string name="wallet_transaction_reason">Reason: %1$s</string>
+    <string name="wallet_transaction_created">Created: %1$s</string>
+
+    <string name="auth_sign_in">Sign in</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_login">Login</string>
+
+    <string name="report_title">Report character</string>
+    <string name="report_loading_reasons">Loading reasons...</string>
+    <string name="report_detail_label">Details (required for other)</string>
+    <string name="report_error_select_reason">Select a reason before submitting.</string>
+    <string name="report_error_detail_required">Details are required for other.</string>
+    <string name="report_submit">Submit</string>
+    <string name="assistant_status_unknown">unknown</string>
+    <string name="assistant_label_user">YOU</string>
+    <string name="assistant_label_assistant">ASSISTANT</string>
+</resources>

@@ -31,9 +31,11 @@
 - 可通过 Gradle 参数覆盖：
   - `./gradlew :app:installDebug -PST_API_BASE_URL=http://10.0.2.2:8080/api/v1/`
   - `./gradlew :app:installDebug -PST_API_BASE_URL=http://10.0.2.2:8080/api/v1/ -PST_DEFAULT_CHARACTER_ID=char-123`
+  - `./gradlew :app:installDebug -PST_PRIVACY_URL=https://example.com/privacy -PST_TERMS_URL=https://example.com/terms`
 
 Debug 构建允许明文 HTTP（便于连本地 dev server），Release 默认关闭明文流量。
 Release 构建需要显式设置 HTTPS 的 `ST_API_BASE_URL`，否则会在启动时终止。
+Release 构建需要显式设置 HTTPS 的 `ST_PRIVACY_URL` 与 `ST_TERMS_URL`，否则会在启动时终止。
 
 聊天会话创建需要默认角色 ID：
 - `ST_DEFAULT_CHARACTER_ID`：用于 `POST /api/v1/chats` 的 `members[0]`
