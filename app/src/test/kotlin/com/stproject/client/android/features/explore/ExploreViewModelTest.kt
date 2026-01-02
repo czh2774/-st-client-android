@@ -6,6 +6,7 @@ import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
 import com.stproject.client.android.domain.repository.CharacterRepository
+import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import com.stproject.client.android.features.chat.ChatViewModelTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -80,6 +81,15 @@ class ExploreViewModelTest : BaseUnitTest() {
                 ExploreViewModel(
                     characterRepository = FakeCharacterRepository(),
                     resolveContentAccess = DenyAccessUseCase(ChatViewModelTest.AllowAllAccessManager()),
+                    followCharacterUseCase =
+                        FollowCharacterUseCase(
+                            characterRepository = FakeCharacterRepository(),
+                            resolveContentAccess =
+                                ResolveContentAccessUseCase(
+                                    accessManager = ChatViewModelTest.AllowAllAccessManager(),
+                                    characterRepository = FakeCharacterRepository(),
+                                ),
+                        ),
                 )
             val collectJob = backgroundScope.launch { vm.uiState.collect() }
 
@@ -101,6 +111,15 @@ class ExploreViewModelTest : BaseUnitTest() {
                 ExploreViewModel(
                     characterRepository = repo,
                     resolveContentAccess = DenyAccessUseCase(ChatViewModelTest.AllowAllAccessManager()),
+                    followCharacterUseCase =
+                        FollowCharacterUseCase(
+                            characterRepository = repo,
+                            resolveContentAccess =
+                                ResolveContentAccessUseCase(
+                                    accessManager = ChatViewModelTest.AllowAllAccessManager(),
+                                    characterRepository = repo,
+                                ),
+                        ),
                 )
             val collectJob = backgroundScope.launch { vm.uiState.collect() }
 

@@ -14,7 +14,7 @@ plus direct chat endpoints in `HttpChatRepository`.
 | Regenerate / continue | `/app-shell/chat` | DONE | `POST dialogs/regenerate`, `POST dialogs/continue` |
 | Swipe actions | `/app-shell/chat` | DONE | `POST dialogs/swipe`, `POST dialogs/swipe/delete` |
 | Delete message | `/app-shell/chat` | PARTIAL (last assistant only) | `POST dialogs/delete` |
-| Chat share page | `/chat-share` | MISSING (Android only shows share code modal) | `GET characters/{id}/share-code`, `GET characters/share-code` |
+| Chat share page | `/chat-share` | DONE | `GET characters/{id}/share-code`, `GET characters/share-code` |
 | World info | `/app-shell/worldinfo` | MISSING | TBD |
 
 Deep link / share-code entry:

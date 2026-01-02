@@ -8,6 +8,7 @@ import com.stproject.client.android.domain.repository.CreatorListResult
 import com.stproject.client.android.domain.repository.CreatorRepository
 import com.stproject.client.android.domain.repository.SocialListResult
 import com.stproject.client.android.domain.repository.SocialRepository
+import com.stproject.client.android.domain.usecase.FollowUserUseCase
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import com.stproject.client.android.features.chat.ChatViewModelTest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -124,11 +125,50 @@ class CreatorsViewModelTest : BaseUnitTest() {
     fun `load sets error when access denied`() =
         runTest(mainDispatcherRule.dispatcher) {
             val creatorRepository = FakeCreatorRepository()
+            val socialRepository = FakeSocialRepository()
             val vm =
                 CreatorsViewModel(
                     creatorRepository = creatorRepository,
-                    socialRepository = FakeSocialRepository(),
+                    socialRepository = socialRepository,
                     resolveContentAccess = DenyAccessUseCase(),
+                    followUserUseCase =
+                        FollowUserUseCase(
+                            socialRepository = socialRepository,
+                            resolveContentAccess =
+                                ResolveContentAccessUseCase(
+                                    accessManager = ChatViewModelTest.AllowAllAccessManager(),
+                                    characterRepository =
+                                        object : com.stproject.client.android.domain.repository.CharacterRepository {
+                                            override suspend fun queryCharacters(
+                                                cursor: String?,
+                                                limit: Int?,
+                                                sortBy: String?,
+                                                isNsfw: Boolean?,
+                                            ): List<com.stproject.client.android.domain.model.CharacterSummary> = emptyList()
+
+                                            override suspend fun getCharacterDetail(characterId: String) =
+                                                throw IllegalStateException("unused")
+
+                                            override suspend fun resolveShareCode(shareCode: String): String? = null
+
+                                            override suspend fun generateShareCode(characterId: String) = null
+
+                                            override suspend fun blockCharacter(
+                                                characterId: String,
+                                                value: Boolean,
+                                            ) = Unit
+
+                                            override suspend fun followCharacter(
+                                                characterId: String,
+                                                value: Boolean,
+                                            ) =
+                                                com.stproject.client.android.domain.model.CharacterFollowResult(
+                                                    totalFollowers = 0,
+                                                    isFollowed = false,
+                                                )
+                                        },
+                                ),
+                        ),
                 )
             val collectJob = backgroundScope.launch { vm.uiState.collect() }
 

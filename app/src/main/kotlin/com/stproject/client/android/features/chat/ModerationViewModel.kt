@@ -3,10 +3,13 @@ package com.stproject.client.android.features.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stproject.client.android.core.common.rethrowIfCancellation
+import com.stproject.client.android.core.compliance.ContentAccessDecision
+import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.core.session.ChatSessionStore
-import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.ReportRepository
+import com.stproject.client.android.domain.usecase.BlockCharacterUseCase
+import com.stproject.client.android.domain.usecase.GuardedActionResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,8 +22,8 @@ class ModerationViewModel
     @Inject
     constructor(
         private val reportRepository: ReportRepository,
-        private val characterRepository: CharacterRepository,
         private val chatSessionStore: ChatSessionStore,
+        private val blockCharacterUseCase: BlockCharacterUseCase,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(ModerationUiState())
         val uiState: StateFlow<ModerationUiState> = _uiState
@@ -124,14 +127,36 @@ class ModerationViewModel
             _uiState.update { it.copy(isSubmitting = true, error = null, lastBlockSuccess = false) }
             viewModelScope.launch {
                 try {
-                    characterRepository.blockCharacter(characterId = resolvedTargetId, value = true)
-                    _uiState.update { it.copy(isSubmitting = false, lastBlockSuccess = true) }
+                    val result =
+                        blockCharacterUseCase.execute(
+                            characterId = resolvedTargetId,
+                            isNsfwHint = false,
+                            value = true,
+                        )
+                    if (result is GuardedActionResult.Blocked) {
+                        _uiState.update {
+                            it.copy(isSubmitting = false, error = accessErrorMessage(result.decision))
+                        }
+                        return@launch
+                    }
+                    _uiState.update {
+                        it.copy(isSubmitting = false, lastBlockSuccess = true)
+                    }
                 } catch (e: ApiException) {
                     _uiState.update { it.copy(isSubmitting = false, error = e.userMessage ?: e.message) }
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
                     _uiState.update { it.copy(isSubmitting = false, error = "unexpected error") }
                 }
+            }
+        }
+
+        private fun accessErrorMessage(access: ContentAccessDecision.Blocked): String {
+            return when (access.reason) {
+                ContentBlockReason.NSFW_DISABLED -> "mature content disabled"
+                ContentBlockReason.AGE_REQUIRED -> "age verification required"
+                ContentBlockReason.CONSENT_REQUIRED -> "terms acceptance required"
+                ContentBlockReason.CONSENT_PENDING -> "compliance not loaded"
             }
         }
 

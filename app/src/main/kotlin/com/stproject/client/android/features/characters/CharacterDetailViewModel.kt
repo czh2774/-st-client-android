@@ -7,6 +7,8 @@ import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.CharacterRepository
+import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
+import com.stproject.client.android.domain.usecase.GuardedActionResult
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +23,7 @@ class CharacterDetailViewModel
     constructor(
         private val characterRepository: CharacterRepository,
         private val resolveContentAccess: ResolveContentAccessUseCase,
+        private val followCharacterUseCase: FollowCharacterUseCase,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(CharacterDetailUiState())
         val uiState: StateFlow<CharacterDetailUiState> = _uiState
@@ -87,17 +90,27 @@ class CharacterDetailViewModel
             if (cleanId.isEmpty()) return
             viewModelScope.launch {
                 try {
-                    val result = characterRepository.followCharacter(cleanId, value)
+                    val result =
+                        followCharacterUseCase.execute(
+                            cleanId,
+                            _uiState.value.detail?.isNsfw,
+                            value,
+                        )
+                    if (result is GuardedActionResult.Blocked) {
+                        _uiState.update { it.copy(error = accessErrorMessage(result.decision)) }
+                        return@launch
+                    }
                     _uiState.update { state ->
                         val detail = state.detail
                         if (detail == null) {
                             state
                         } else {
+                            val followResult = (result as GuardedActionResult.Allowed).value
                             state.copy(
                                 detail =
                                     detail.copy(
-                                        totalFollowers = result.totalFollowers,
-                                        isFollowed = result.isFollowed,
+                                        totalFollowers = followResult.totalFollowers,
+                                        isFollowed = followResult.isFollowed,
                                     ),
                             )
                         }

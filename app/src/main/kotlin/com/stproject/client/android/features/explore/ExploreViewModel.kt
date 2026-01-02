@@ -8,6 +8,8 @@ import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.CharacterRepository
+import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
+import com.stproject.client.android.domain.usecase.GuardedActionResult
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,7 @@ class ExploreViewModel
     constructor(
         private val characterRepository: CharacterRepository,
         private val resolveContentAccess: ResolveContentAccessUseCase,
+        private val followCharacterUseCase: FollowCharacterUseCase,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(ExploreUiState())
         val uiState: StateFlow<ExploreUiState> = _uiState
@@ -71,15 +74,21 @@ class ExploreViewModel
             if (cleanId.isEmpty()) return
             viewModelScope.launch {
                 try {
-                    val result = characterRepository.followCharacter(cleanId, value)
+                    val isNsfwHint = _uiState.value.items.firstOrNull { it.id == cleanId }?.isNsfw
+                    val result = followCharacterUseCase.execute(cleanId, isNsfwHint, value)
+                    if (result is GuardedActionResult.Blocked) {
+                        _uiState.update { it.copy(error = accessErrorMessage(result.decision)) }
+                        return@launch
+                    }
                     _uiState.update { state ->
+                        val followResult = (result as GuardedActionResult.Allowed).value
                         state.copy(
                             items =
                                 state.items.map { item ->
                                     if (item.id == cleanId) {
                                         item.copy(
-                                            totalFollowers = result.totalFollowers,
-                                            isFollowed = result.isFollowed,
+                                            totalFollowers = followResult.totalFollowers,
+                                            isFollowed = followResult.isFollowed,
                                         )
                                     } else {
                                         item

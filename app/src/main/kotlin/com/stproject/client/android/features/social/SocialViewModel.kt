@@ -7,6 +7,9 @@ import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.SocialRepository
+import com.stproject.client.android.domain.usecase.BlockUserUseCase
+import com.stproject.client.android.domain.usecase.FollowUserUseCase
+import com.stproject.client.android.domain.usecase.GuardedActionResult
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +24,8 @@ class SocialViewModel
     constructor(
         private val socialRepository: SocialRepository,
         private val resolveContentAccess: ResolveContentAccessUseCase,
+        private val followUserUseCase: FollowUserUseCase,
+        private val blockUserUseCase: BlockUserUseCase,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(SocialUiState())
         val uiState: StateFlow<SocialUiState> = _uiState
@@ -145,12 +150,13 @@ class SocialViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
-                    if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = accessErrorMessage(access)) }
+                    val result = followUserUseCase.execute(userId, value)
+                    if (result is GuardedActionResult.Blocked) {
+                        _uiState.update {
+                            it.copy(isLoading = false, error = accessErrorMessage(result.decision))
+                        }
                         return@launch
                     }
-                    socialRepository.followUser(userId, value)
                     _uiState.update { it.copy(isLoading = false) }
                     load()
                 } catch (e: ApiException) {
@@ -171,12 +177,13 @@ class SocialViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
-                    if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = accessErrorMessage(access)) }
+                    val result = blockUserUseCase.execute(userId, value)
+                    if (result is GuardedActionResult.Blocked) {
+                        _uiState.update {
+                            it.copy(isLoading = false, error = accessErrorMessage(result.decision))
+                        }
                         return@launch
                     }
-                    socialRepository.blockUser(userId, value)
                     _uiState.update { it.copy(isLoading = false) }
                     load()
                 } catch (e: ApiException) {

@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
@@ -36,6 +37,8 @@ import com.stproject.client.android.core.compliance.NsfwBlockedDialog
 import com.stproject.client.android.domain.model.CharacterSummary
 import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chat.ReportDialog
+
+private const val SHARE_CODE_INPUT_TEST_TAG = "explore.share_code_input"
 
 @Composable
 fun ExploreScreen(
@@ -88,7 +91,10 @@ fun ExploreScreen(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag(SHARE_CODE_INPUT_TEST_TAG),
                     value = uiState.shareCodeInput,
                     onValueChange = viewModel::onShareCodeChanged,
                     enabled = !uiState.isResolvingShareCode,

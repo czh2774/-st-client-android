@@ -2,6 +2,7 @@ package com.stproject.client.android
 
 import android.app.LocaleManager
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.LocaleList
@@ -44,6 +45,8 @@ import com.stproject.client.android.features.auth.AuthViewModel
 import com.stproject.client.android.features.characters.CharacterDetailScreen
 import com.stproject.client.android.features.characters.CharacterDetailViewModel
 import com.stproject.client.android.features.chat.ChatScreen
+import com.stproject.client.android.features.chat.ChatShareScreen
+import com.stproject.client.android.features.chat.ChatShareViewModel
 import com.stproject.client.android.features.chat.ChatViewModel
 import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chats.ChatsListScreen
@@ -75,6 +78,8 @@ import com.stproject.client.android.features.wallet.WalletViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 private const val CHAT_SESSION_ROUTE = "chat/session"
+private const val CHAT_SHARE_ROUTE = "chat-share"
+private const val CHAT_SHARE_ROUTE_PATTERN = "chat-share?shareCode={shareCode}"
 private const val CHARACTER_DETAIL_ROUTE = "explore/detail"
 private const val CHARACTER_DETAIL_ROUTE_PATTERN = "explore/detail/{characterId}"
 private const val CREATOR_DETAIL_ROUTE = "creators/detail"
@@ -85,6 +90,7 @@ private const val CREATOR_ASSISTANT_CHAT_ROUTE_PATTERN = "creators/assistant/{se
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val chatViewModel: ChatViewModel by viewModels()
+    private val chatShareViewModel: ChatShareViewModel by viewModels()
     private val authViewModel: AuthViewModel by viewModels()
     private val complianceViewModel: ComplianceViewModel by viewModels()
     private val moderationViewModel: ModerationViewModel by viewModels()
@@ -136,6 +142,7 @@ class MainActivity : ComponentActivity() {
                     if (authState.isAuthenticated) {
                         AuthenticatedContent(
                             chatViewModel = chatViewModel,
+                            chatShareViewModel = chatShareViewModel,
                             moderationViewModel = moderationViewModel,
                             complianceViewModel = complianceViewModel,
                             exploreViewModel = exploreViewModel,
@@ -174,6 +181,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AuthenticatedContent(
     chatViewModel: ChatViewModel,
+    chatShareViewModel: ChatShareViewModel,
     moderationViewModel: ModerationViewModel,
     complianceViewModel: ComplianceViewModel,
     exploreViewModel: ExploreViewModel,
@@ -214,6 +222,8 @@ private fun AuthenticatedContent(
 
     fun creatorDetailRoute(creatorId: String): String = "$CREATOR_DETAIL_ROUTE/${creatorId.trim()}"
 
+    fun chatShareRoute(shareCode: String): String = "$CHAT_SHARE_ROUTE?shareCode=${Uri.encode(shareCode)}"
+
     fun creatorAssistantChatRoute(sessionId: String): String = "creators/assistant/${sessionId.trim()}"
 
     LaunchedEffect(contentGate.nsfwAllowed, contentAllowed) {
@@ -226,9 +236,10 @@ private fun AuthenticatedContent(
     LaunchedEffect(incomingShareCode, contentAllowed) {
         val code = incomingShareCode?.trim()?.takeIf { it.isNotEmpty() }
         if (code != null && contentAllowed) {
-            navigateTo(MainTab.Explore)
-            exploreViewModel.onShareCodeChanged(code)
-            exploreViewModel.resolveShareCode()
+            navController.navigate(chatShareRoute(code)) {
+                launchSingleTop = true
+            }
+            onShareCodeConsumed()
         }
     }
 
@@ -341,6 +352,26 @@ private fun AuthenticatedContent(
                             viewModel = chatViewModel,
                             moderationViewModel = moderationViewModel,
                             onBackToList = { navController.popBackStack() },
+                        )
+                    }
+                    composable(
+                        route = CHAT_SHARE_ROUTE_PATTERN,
+                        arguments =
+                            listOf(
+                                navArgument("shareCode") {
+                                    type = NavType.StringType
+                                    nullable = true
+                                },
+                            ),
+                    ) { entry ->
+                        val shareCode = entry.arguments?.getString("shareCode")
+                        ChatShareScreen(
+                            shareCode = shareCode,
+                            viewModel = chatShareViewModel,
+                            chatViewModel = chatViewModel,
+                            onBackToExplore = { navigateTo(MainTab.Explore) },
+                            onOpenChat = { navController.navigate(CHAT_SESSION_ROUTE) },
+                            onShareCodeConsumed = onShareCodeConsumed,
                         )
                     }
                     composable(MainTab.Profile.route) {

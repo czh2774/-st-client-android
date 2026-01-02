@@ -8,6 +8,8 @@ import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.CreatorRepository
 import com.stproject.client.android.domain.repository.SocialRepository
+import com.stproject.client.android.domain.usecase.FollowUserUseCase
+import com.stproject.client.android.domain.usecase.GuardedActionResult
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +25,7 @@ class CreatorsViewModel
         private val creatorRepository: CreatorRepository,
         private val socialRepository: SocialRepository,
         private val resolveContentAccess: ResolveContentAccessUseCase,
+        private val followUserUseCase: FollowUserUseCase,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(CreatorsUiState())
         val uiState: StateFlow<CreatorsUiState> = _uiState
@@ -112,7 +115,11 @@ class CreatorsViewModel
             if (cleanId.isEmpty()) return
             viewModelScope.launch {
                 try {
-                    socialRepository.followUser(cleanId, value)
+                    val result = followUserUseCase.execute(cleanId, value)
+                    if (result is GuardedActionResult.Blocked) {
+                        _uiState.update { it.copy(error = accessErrorMessage(result.decision)) }
+                        return@launch
+                    }
                     _uiState.update { state ->
                         state.copy(
                             items =

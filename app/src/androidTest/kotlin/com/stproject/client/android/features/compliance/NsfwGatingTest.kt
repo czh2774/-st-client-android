@@ -23,6 +23,8 @@ import com.stproject.client.android.domain.model.ShareCodeInfo
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.ChatRepository
 import com.stproject.client.android.domain.repository.ReportRepository
+import com.stproject.client.android.domain.usecase.BlockCharacterUseCase
+import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import com.stproject.client.android.features.characters.CharacterDetailScreen
 import com.stproject.client.android.features.characters.CharacterDetailViewModel
@@ -83,6 +85,7 @@ class NsfwGatingTest {
                         accessManager = AllowAllAccessManager(),
                         characterRepository = repo,
                     ),
+                followCharacterUseCase = createFollowCharacterUseCase(repo),
             ).apply {
                 setNsfwAllowed(false)
             }
@@ -90,8 +93,8 @@ class NsfwGatingTest {
         val moderationViewModel =
             ModerationViewModel(
                 reportRepository = FakeReportRepository(),
-                characterRepository = repo,
                 chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase = createBlockCharacterUseCase(repo),
             )
 
         composeRule.setContent {
@@ -143,6 +146,7 @@ class NsfwGatingTest {
                         accessManager = AllowAllAccessManager(),
                         characterRepository = repo,
                     ),
+                followCharacterUseCase = createFollowCharacterUseCase(repo),
             ).apply {
                 setNsfwAllowed(false)
             }
@@ -150,8 +154,8 @@ class NsfwGatingTest {
         val moderationViewModel =
             ModerationViewModel(
                 reportRepository = FakeReportRepository(),
-                characterRepository = repo,
                 chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase = createBlockCharacterUseCase(repo),
             )
 
         composeRule.setContent {
@@ -207,12 +211,13 @@ class NsfwGatingTest {
                         accessManager = AllowAllAccessManager(),
                         characterRepository = repo,
                     ),
+                followCharacterUseCase = createFollowCharacterUseCase(repo),
             )
         val moderationViewModel =
             ModerationViewModel(
                 reportRepository = FakeReportRepository(),
-                characterRepository = repo,
                 chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase = createBlockCharacterUseCase(repo),
             )
 
         composeRule.setContent {
@@ -265,7 +270,16 @@ class NsfwGatingTest {
                         "char-1" to nsfwDetail("char-1"),
                     ),
             )
-        val viewModel = ChatsListViewModel(chatRepo, characterRepo)
+        val viewModel =
+            ChatsListViewModel(
+                chatRepository = chatRepo,
+                characterRepository = characterRepo,
+                resolveContentAccess =
+                    ResolveContentAccessUseCase(
+                        accessManager = AllowAllAccessManager(),
+                        characterRepository = characterRepo,
+                    ),
+            )
         val openCount = AtomicInteger(0)
 
         composeRule.setContent {
@@ -287,6 +301,32 @@ class NsfwGatingTest {
             }
         }
     }
+}
+
+private fun createFollowCharacterUseCase(
+    repo: CharacterRepository,
+): FollowCharacterUseCase {
+    return FollowCharacterUseCase(
+        characterRepository = repo,
+        resolveContentAccess =
+            ResolveContentAccessUseCase(
+                accessManager = AllowAllAccessManager(),
+                characterRepository = repo,
+            ),
+    )
+}
+
+private fun createBlockCharacterUseCase(
+    repo: CharacterRepository,
+): BlockCharacterUseCase {
+    return BlockCharacterUseCase(
+        characterRepository = repo,
+        resolveContentAccess =
+            ResolveContentAccessUseCase(
+                accessManager = AllowAllAccessManager(),
+                characterRepository = repo,
+            ),
+    )
 }
 
 private class FakeChatRepository(

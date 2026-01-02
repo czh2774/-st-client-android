@@ -64,6 +64,10 @@
     <string name="chat_share_code_label">Share code: %1$s</string>
     <string name="chat_app_link_label">App link: %1$s</string>
     <string name="chat_copy_app_link">Copy app link</string>
+    <string name="chat_share_resolving_title">Resolving share code</string>
+    <string name="chat_share_resolving_body">Preparing your chat...</string>
+    <string name="chat_share_invalid_title">Share code invalid</string>
+    <string name="chat_share_back_to_explore">Back to Explore</string>
     <string name="chat_swipe_label">Swipe %1$d/%2$d</string>
     <string name="chat_swipe_prev">Prev</string>
     <string name="chat_swipe_next">Next</string>
