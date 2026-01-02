@@ -71,7 +71,11 @@ import com.stproject.client.android.features.notifications.NotificationsViewMode
 import com.stproject.client.android.features.profile.ProfileScreen
 import com.stproject.client.android.features.profile.ProfileViewModel
 import com.stproject.client.android.features.settings.AgeVerificationDialog
+import com.stproject.client.android.features.settings.BackgroundsScreen
+import com.stproject.client.android.features.settings.BackgroundsViewModel
 import com.stproject.client.android.features.settings.ComplianceViewModel
+import com.stproject.client.android.features.settings.DecorationsScreen
+import com.stproject.client.android.features.settings.DecorationsViewModel
 import com.stproject.client.android.features.settings.ModelPresetsScreen
 import com.stproject.client.android.features.settings.ModelPresetsViewModel
 import com.stproject.client.android.features.settings.PrivacyConsentDialog
@@ -100,6 +104,8 @@ private const val CREATE_ROLE_ROUTE = "create/role"
 private const val COMMENTS_ROUTE = "comments"
 private const val COMMENTS_ROUTE_PATTERN = "comments/{characterId}"
 private const val MODEL_PRESETS_ROUTE = "settings/model-presets"
+private const val SETTINGS_BACKGROUNDS_ROUTE = "settings/backgrounds"
+private const val SETTINGS_DECORATIONS_ROUTE = "settings/decorations"
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -122,6 +128,8 @@ class MainActivity : ComponentActivity() {
     private val shopViewModel: ShopViewModel by viewModels()
     private val walletViewModel: WalletViewModel by viewModels()
     private val modelPresetsViewModel: ModelPresetsViewModel by viewModels()
+    private val backgroundsViewModel: BackgroundsViewModel by viewModels()
+    private val decorationsViewModel: DecorationsViewModel by viewModels()
     private val worldInfoViewModel: WorldInfoViewModel by viewModels()
     private val commentsViewModel: CommentsViewModel by viewModels()
     private val pendingShareCode = mutableStateOf<String?>(null)

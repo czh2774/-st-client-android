@@ -40,6 +40,8 @@ fun SettingsScreen(
     onThemeModeChanged: (ThemeMode) -> Unit,
     onLanguageTagChanged: (String?) -> Unit,
     onOpenModelPresets: () -> Unit,
+    onOpenBackgrounds: () -> Unit,
+    onOpenDecorations: () -> Unit,
 ) {
     val context = LocalContext.current
     val policyUrls = remember { PolicyUrlProvider() }
@@ -188,6 +190,16 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_model_presets_title), style = MaterialTheme.typography.titleMedium)
                 Button(onClick = onOpenModelPresets, enabled = !uiState.isSubmitting) {
                     Text(stringResource(R.string.model_presets_title))
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.settings_customize_title), style = MaterialTheme.typography.titleMedium)
+                Button(onClick = onOpenBackgrounds, enabled = !uiState.isSubmitting) {
+                    Text(stringResource(R.string.settings_backgrounds_title))
+                }
+                Button(onClick = onOpenDecorations, enabled = !uiState.isSubmitting) {
+                    Text(stringResource(R.string.settings_decorations_title))
                 }
             }
 
