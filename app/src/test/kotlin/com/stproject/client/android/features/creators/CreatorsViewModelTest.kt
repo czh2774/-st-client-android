@@ -3,6 +3,9 @@ package com.stproject.client.android.features.creators
 import com.stproject.client.android.BaseUnitTest
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentBlockReason
+import com.stproject.client.android.domain.model.CharacterFollowResult
+import com.stproject.client.android.domain.model.CharacterSummary
+import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.CreatorCharactersResult
 import com.stproject.client.android.domain.repository.CreatorListResult
 import com.stproject.client.android.domain.repository.CreatorRepository
@@ -83,16 +86,17 @@ class CreatorsViewModelTest : BaseUnitTest() {
         ResolveContentAccessUseCase(
             accessManager = ChatViewModelTest.AllowAllAccessManager(),
             characterRepository =
-                object : com.stproject.client.android.domain.repository.CharacterRepository {
+                object : CharacterRepository {
                     override suspend fun queryCharacters(
                         cursor: String?,
                         limit: Int?,
                         sortBy: String?,
                         isNsfw: Boolean?,
-                    ): List<com.stproject.client.android.domain.model.CharacterSummary> = emptyList()
+                    ): List<CharacterSummary> = emptyList()
 
-                    override suspend fun getCharacterDetail(characterId: String) =
+                    override suspend fun getCharacterDetail(characterId: String): Nothing {
                         throw IllegalStateException("unused")
+                    }
 
                     override suspend fun resolveShareCode(shareCode: String): String? = null
 
@@ -106,8 +110,8 @@ class CreatorsViewModelTest : BaseUnitTest() {
                     override suspend fun followCharacter(
                         characterId: String,
                         value: Boolean,
-                    ) =
-                        com.stproject.client.android.domain.model.CharacterFollowResult(
+                    ): CharacterFollowResult =
+                        CharacterFollowResult(
                             totalFollowers = 0,
                             isFollowed = false,
                         )
@@ -138,16 +142,17 @@ class CreatorsViewModelTest : BaseUnitTest() {
                                 ResolveContentAccessUseCase(
                                     accessManager = ChatViewModelTest.AllowAllAccessManager(),
                                     characterRepository =
-                                        object : com.stproject.client.android.domain.repository.CharacterRepository {
+                                        object : CharacterRepository {
                                             override suspend fun queryCharacters(
                                                 cursor: String?,
                                                 limit: Int?,
                                                 sortBy: String?,
                                                 isNsfw: Boolean?,
-                                            ): List<com.stproject.client.android.domain.model.CharacterSummary> = emptyList()
+                                            ): List<CharacterSummary> = emptyList()
 
-                                            override suspend fun getCharacterDetail(characterId: String) =
+                                            override suspend fun getCharacterDetail(characterId: String): Nothing {
                                                 throw IllegalStateException("unused")
+                                            }
 
                                             override suspend fun resolveShareCode(shareCode: String): String? = null
 
@@ -161,8 +166,8 @@ class CreatorsViewModelTest : BaseUnitTest() {
                                             override suspend fun followCharacter(
                                                 characterId: String,
                                                 value: Boolean,
-                                            ) =
-                                                com.stproject.client.android.domain.model.CharacterFollowResult(
+                                            ): CharacterFollowResult =
+                                                CharacterFollowResult(
                                                     totalFollowers = 0,
                                                     isFollowed = false,
                                                 )

@@ -39,6 +39,7 @@ fun SettingsScreen(
     onAllowNsfwChanged: (Boolean) -> Unit,
     onThemeModeChanged: (ThemeMode) -> Unit,
     onLanguageTagChanged: (String?) -> Unit,
+    onOpenModelPresets: () -> Unit,
 ) {
     val context = LocalContext.current
     val policyUrls = remember { PolicyUrlProvider() }
@@ -180,6 +181,13 @@ fun SettingsScreen(
                         selected = uiState.languageTag == "zh-CN",
                         onClick = { onLanguageTagChanged("zh-CN") },
                     )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.settings_model_presets_title), style = MaterialTheme.typography.titleMedium)
+                Button(onClick = onOpenModelPresets, enabled = !uiState.isSubmitting) {
+                    Text(stringResource(R.string.model_presets_title))
                 }
             }
 

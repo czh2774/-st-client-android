@@ -1,12 +1,17 @@
 package com.stproject.client.android.features.chat
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.stproject.client.android.BaseUnitTest
+import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentAccessManager
 import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.core.session.ChatSessionStore
+import com.stproject.client.android.domain.model.A2UIAction
+import com.stproject.client.android.domain.model.A2UIActionResult
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
@@ -134,10 +139,18 @@ class ChatViewModelTest : BaseUnitTest() {
     private class FakeChatRepository : ChatRepository {
         private val _messages = MutableStateFlow(emptyList<ChatMessage>())
         override val messages: Flow<List<ChatMessage>> = _messages.asStateFlow()
+        override val a2uiState: Flow<A2UIRuntimeState?> =
+            MutableStateFlow(null)
         var startCalls = 0
+        var storedVariables: Map<String, Any> = emptyMap()
+        val updateCalls = mutableListOf<Map<String, Any>>()
 
         override suspend fun sendUserMessage(content: String) {
             // no-op: we only test that ViewModel clears input and toggles sending.
+        }
+
+        override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
+            return A2UIActionResult(accepted = false, reason = "not_supported")
         }
 
         override suspend fun startNewSession(
@@ -157,6 +170,8 @@ class ChatViewModelTest : BaseUnitTest() {
             offset: Int,
         ) = emptyList<ChatSessionSummary>()
 
+        override suspend fun getLastSessionSummary(): ChatSessionSummary? = null
+
         override suspend fun regenerateMessage(messageId: String) = Unit
 
         override suspend fun continueMessage(messageId: String) = Unit
@@ -175,6 +190,13 @@ class ChatViewModelTest : BaseUnitTest() {
             messageId: String,
             swipeId: Int?,
         ) = Unit
+
+        override suspend fun loadSessionVariables(): Map<String, Any> = storedVariables
+
+        override suspend fun updateSessionVariables(variables: Map<String, Any>) {
+            updateCalls.add(variables)
+            storedVariables = variables
+        }
 
         override suspend fun clearLocalSession() = Unit
     }
@@ -206,16 +228,46 @@ class ChatViewModelTest : BaseUnitTest() {
         }
 
     @Test
+    fun `start new chat blocked by access gate`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val accessManager = AllowAllAccessManager()
+            val denyUseCase = DenyAccessUseCase(accessManager, FakeCharacterRepository())
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    resolveContentAccess = denyUseCase,
+                )
+            val collectJob = backgroundScope.launch { vm.uiState.collect() }
+
+            vm.startNewChat("char-1")
+            advanceUntilIdle()
+
+            assertEquals(0, repo.startCalls)
+            assertEquals("mature content disabled", vm.uiState.value.error)
+            collectJob.cancel()
+        }
+
+    @Test
     fun `send toggles isSending while running`() =
         runTest(mainDispatcherRule.dispatcher) {
             val repo =
                 object : ChatRepository {
                     private val _messages = MutableStateFlow(emptyList<ChatMessage>())
                     override val messages: Flow<List<ChatMessage>> = _messages.asStateFlow()
+                    override val a2uiState: Flow<A2UIRuntimeState?> =
+                        MutableStateFlow(null)
 
                     override suspend fun sendUserMessage(content: String) {
                         // Suspend until the test advances the dispatcher.
                         kotlinx.coroutines.delay(1000)
+                    }
+
+                    override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
+                        return A2UIActionResult(accepted = false, reason = "not_supported")
                     }
 
                     override suspend fun startNewSession(
@@ -232,6 +284,8 @@ class ChatViewModelTest : BaseUnitTest() {
                         limit: Int,
                         offset: Int,
                     ) = emptyList<ChatSessionSummary>()
+
+                    override suspend fun getLastSessionSummary(): ChatSessionSummary? = null
 
                     override suspend fun regenerateMessage(messageId: String) = Unit
 
@@ -251,6 +305,10 @@ class ChatViewModelTest : BaseUnitTest() {
                         messageId: String,
                         swipeId: Int?,
                     ) = Unit
+
+                    override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+
+                    override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
 
                     override suspend fun clearLocalSession() = Unit
                 }
@@ -291,9 +349,15 @@ class ChatViewModelTest : BaseUnitTest() {
                 object : ChatRepository {
                     private val _messages = MutableStateFlow(emptyList<ChatMessage>())
                     override val messages: Flow<List<ChatMessage>> = _messages.asStateFlow()
+                    override val a2uiState: Flow<A2UIRuntimeState?> =
+                        MutableStateFlow(null)
 
                     override suspend fun sendUserMessage(content: String) {
                         throw ApiException(message = "boom")
+                    }
+
+                    override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
+                        return A2UIActionResult(accepted = false, reason = "not_supported")
                     }
 
                     override suspend fun startNewSession(
@@ -310,6 +374,8 @@ class ChatViewModelTest : BaseUnitTest() {
                         limit: Int,
                         offset: Int,
                     ) = emptyList<ChatSessionSummary>()
+
+                    override suspend fun getLastSessionSummary(): ChatSessionSummary? = null
 
                     override suspend fun regenerateMessage(messageId: String) = Unit
 
@@ -329,6 +395,10 @@ class ChatViewModelTest : BaseUnitTest() {
                         messageId: String,
                         swipeId: Int?,
                     ) = Unit
+
+                    override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+
+                    override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
 
                     override suspend fun clearLocalSession() = Unit
                 }
@@ -435,6 +505,98 @@ class ChatViewModelTest : BaseUnitTest() {
 
             assertTrue(vm.uiState.value.error?.contains("mature") == true)
             assertNull(vm.uiState.value.shareInfo)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `load variables populates ui state`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo =
+                FakeChatRepository().apply {
+                    storedVariables = mapOf("foo" to "bar", "count" to 2)
+                }
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.loadVariables()
+            advanceUntilIdle()
+
+            val state = vm.variablesUiState.value
+            assertFalse(state.isLoading)
+            assertNull(state.error)
+            val type = object : TypeToken<Map<String, Any>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any>>(state.text, type)
+            assertEquals("bar", parsed["foo"])
+            assertEquals(2.0, parsed["count"])
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `save variables persists valid json`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.updateVariablesText("""{"foo":"bar","count":2}""")
+            vm.saveVariables()
+            advanceUntilIdle()
+
+            assertEquals(1, repo.updateCalls.size)
+            val saved = repo.updateCalls.first()
+            assertEquals("bar", saved["foo"])
+            assertEquals(2.0, saved["count"])
+            assertFalse(vm.variablesUiState.value.isDirty)
+            assertNull(vm.variablesUiState.value.error)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `save variables rejects invalid json`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.updateVariablesText("{")
+            vm.saveVariables()
+            advanceUntilIdle()
+
+            assertEquals("invalid json", vm.variablesUiState.value.error)
+            assertTrue(repo.updateCalls.isEmpty())
             collectJob.cancel()
         }
 }

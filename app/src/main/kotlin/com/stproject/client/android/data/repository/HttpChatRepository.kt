@@ -4,11 +4,19 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import com.stproject.client.android.BuildConfig
+import com.stproject.client.android.core.a2ui.A2UIMessage
+import com.stproject.client.android.core.a2ui.A2UIRuntimeReducer
+import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.common.rethrowIfCancellation
+import com.stproject.client.android.core.network.A2UIActionContextEntryDto
+import com.stproject.client.android.core.network.A2UIEventRequestDto
+import com.stproject.client.android.core.network.A2UIUserActionDto
 import com.stproject.client.android.core.network.ApiClient
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.core.network.ChatCompletionRequestDto
 import com.stproject.client.android.core.network.ChatMessageDto
+import com.stproject.client.android.core.network.ChatSessionDetailDto
+import com.stproject.client.android.core.network.ChatSessionMetadataPatchDto
 import com.stproject.client.android.core.network.CreateChatSessionRequestDto
 import com.stproject.client.android.core.network.DialogDeleteRequestDto
 import com.stproject.client.android.core.network.DialogStreamRequestDto
@@ -16,11 +24,15 @@ import com.stproject.client.android.core.network.DialogSwipeDeleteRequestDto
 import com.stproject.client.android.core.network.DialogSwipeRequestDto
 import com.stproject.client.android.core.network.StApi
 import com.stproject.client.android.core.network.StBaseUrlProvider
+import com.stproject.client.android.core.network.UpdateChatSessionRequestDto
 import com.stproject.client.android.core.session.ChatSessionStore
+import com.stproject.client.android.core.preferences.UserPreferencesStore
 import com.stproject.client.android.data.local.ChatMessageDao
 import com.stproject.client.android.data.local.ChatMessageEntity
 import com.stproject.client.android.data.local.ChatSessionDao
 import com.stproject.client.android.data.local.ChatSessionEntity
+import com.stproject.client.android.domain.model.A2UIAction
+import com.stproject.client.android.domain.model.A2UIActionResult
 import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatRole
 import com.stproject.client.android.domain.model.ChatSessionSummary
@@ -29,12 +41,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -63,6 +78,7 @@ class HttpChatRepository
         private val messageDao: ChatMessageDao,
         private val sessionDao: ChatSessionDao,
         private val sessionStore: ChatSessionStore,
+        private val userPreferencesStore: UserPreferencesStore,
     ) : ChatRepository {
         private companion object {
             private const val MAX_CACHED_SESSIONS = 100
@@ -76,6 +92,7 @@ class HttpChatRepository
                 .readTimeout(0, TimeUnit.SECONDS)
                 .build()
         private val sessionIdFlow = MutableStateFlow(sessionStore.getSessionId())
+        private val a2uiRefresh = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
         override val messages: Flow<List<ChatMessage>> =
             sessionIdFlow.flatMapLatest { sessionId ->
@@ -87,6 +104,18 @@ class HttpChatRepository
                     }
                 }
             }
+
+        override val a2uiState: Flow<A2UIRuntimeState?> =
+            sessionIdFlow
+                .flatMapLatest { sessionId ->
+                    if (sessionId.isNullOrBlank()) {
+                        flowOf(null)
+                    } else {
+                        a2uiRefresh
+                            .onStart { emit(Unit) }
+                            .flatMapLatest { streamA2uiRuntime(sessionId) }
+                    }
+                }.catch { emit(null) }
 
         override suspend fun sendUserMessage(content: String) {
             val trimmed = content.trim()
@@ -170,7 +199,40 @@ class HttpChatRepository
                 if (!hasDelta && !streamFailed) {
                     fallbackCompletion(sessionId, trimmed, userId, assistantId)
                 }
+                refreshA2UI()
             }
+        }
+
+        override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
+            val name = action.name.trim()
+            if (name.isEmpty()) {
+                return A2UIActionResult(accepted = false, reason = "missing_action")
+            }
+            val contextEntries =
+                action.context.entries.mapNotNull {
+                    val value = it.value ?: return@mapNotNull null
+                    A2UIActionContextEntryDto(
+                        key = it.key,
+                        value = value,
+                    )
+                }
+            val request =
+                A2UIEventRequestDto(
+                    userAction =
+                        A2UIUserActionDto(
+                            name = name,
+                            surfaceId = action.surfaceId?.trim()?.takeIf { it.isNotEmpty() },
+                            sourceComponentId = action.sourceComponentId?.trim()?.takeIf { it.isNotEmpty() },
+                            timestamp = Instant.now().toString(),
+                            context = contextEntries,
+                        ),
+                )
+            val data = apiClient.call { api.sendA2UIEvent(request) }
+            refreshA2UI()
+            return A2UIActionResult(
+                accepted = data.accepted,
+                reason = data.reason,
+            )
         }
 
         override suspend fun clearLocalSession() {
@@ -268,6 +330,24 @@ class HttpChatRepository
                     }
                 cached.map { it.toSummary() }
             }
+        }
+
+        override suspend fun getLastSessionSummary(): ChatSessionSummary? {
+            val storedId = sessionStore.getSessionId()?.trim().orEmpty()
+            val cached =
+                withContext(Dispatchers.IO) {
+                    if (storedId.isNotEmpty()) {
+                        sessionDao.getSession(storedId)
+                    } else {
+                        null
+                    }
+                }
+            if (cached != null) return cached.toSummary()
+            val fallback =
+                withContext(Dispatchers.IO) {
+                    sessionDao.listSessions(limit = 1, offset = 0).firstOrNull()
+                }
+            return fallback?.toSummary()
         }
 
         override suspend fun regenerateMessage(messageId: String) {
@@ -381,6 +461,30 @@ class HttpChatRepository
             updateSwipeState(serverId, resp.content, resp.swipes, resp.swipeId, resp.metadata)
         }
 
+        override suspend fun loadSessionVariables(): Map<String, Any> {
+            val sessionId = sessionStore.getSessionId()?.trim().orEmpty()
+            if (sessionId.isEmpty()) {
+                throw ApiException(message = "missing session", userMessage = "missing session")
+            }
+            val resp = apiClient.call { api.getChatSession(sessionId) }
+            trackSessionUpdatedAt(resp)
+            return parseSessionVariables(resp)
+        }
+
+        override suspend fun updateSessionVariables(variables: Map<String, Any>) {
+            val sessionId = sessionStore.getSessionId()?.trim().orEmpty()
+            if (sessionId.isEmpty()) {
+                throw ApiException(message = "missing session", userMessage = "missing session")
+            }
+            val request =
+                UpdateChatSessionRequestDto(
+                    metadata = ChatSessionMetadataPatchDto(xbVars = variables),
+                )
+            val resp = apiClient.call { api.updateChatSession(sessionId, request) }
+            trackSessionUpdatedAt(resp)
+            refreshA2UI()
+        }
+
         private suspend fun ensureSessionId(): String {
             val existing = sessionStore.getSessionId()?.trim()?.takeIf { it.isNotEmpty() }
             if (existing != null) {
@@ -414,6 +518,7 @@ class HttpChatRepository
             sessionStore.setPrimaryMemberId(memberId)
 
             val shareCode = sessionStore.getShareCode()?.trim()?.takeIf { it.isNotEmpty() }
+            val presetId = userPreferencesStore.getModelPresetId()
             val created =
                 apiClient.call {
                     api.createChatSession(
@@ -421,6 +526,7 @@ class HttpChatRepository
                             members = listOf(memberId),
                             greetingIndex = 0,
                             clientSessionId = clientSessionId,
+                            presetId = presetId,
                             shareCode = shareCode,
                         ),
                     )
@@ -462,6 +568,11 @@ class HttpChatRepository
                     messageDao.upsertAll(entities)
                 }
             }
+            refreshA2UI()
+        }
+
+        private fun refreshA2UI() {
+            a2uiRefresh.tryEmit(Unit)
         }
 
         private suspend fun resolveServerMessageId(messageId: String): String {
@@ -666,6 +777,47 @@ class HttpChatRepository
                     }
                 val factory = EventSources.createFactory(sseClient)
                 val eventSource = factory.newEventSource(requestBody, listener)
+                awaitClose { eventSource.cancel() }
+            }
+
+        private fun streamA2uiRuntime(sessionId: String): Flow<A2UIRuntimeState?> =
+            callbackFlow {
+                var currentState = A2UIRuntimeState()
+                val request =
+                    Request.Builder()
+                        .url("${baseUrlProvider.baseUrl()}a2ui/stream?sessionId=$sessionId")
+                        .header("Accept", "text/event-stream")
+                        .header("X-ST-SSE-Protocol", "1")
+                        .get()
+                        .build()
+                val listener =
+                    object : EventSourceListener() {
+                        override fun onEvent(
+                            eventSource: EventSource,
+                            id: String?,
+                            type: String?,
+                            data: String,
+                        ) {
+                            if (data == "[DONE]") {
+                                close()
+                                eventSource.cancel()
+                                return
+                            }
+                            val msg = runCatching { gson.fromJson(data, A2UIMessage::class.java) }.getOrNull() ?: return
+                            currentState = A2UIRuntimeReducer.reduce(currentState, msg)
+                            trySend(currentState.takeUnless { it.isEmpty })
+                        }
+
+                        override fun onFailure(
+                            eventSource: EventSource,
+                            t: Throwable?,
+                            response: Response?,
+                        ) {
+                            close(t ?: ApiException(message = "a2ui stream failed"))
+                        }
+                    }
+                val factory = EventSources.createFactory(sseClient)
+                val eventSource = factory.newEventSource(request, listener)
                 awaitClose { eventSource.cancel() }
             }
 
@@ -874,6 +1026,32 @@ class HttpChatRepository
             return runCatching {
                 gson.fromJson<Map<String, Any>>(raw, metadataType)
             }.getOrNull()
+        }
+
+        private fun trackSessionUpdatedAt(detail: ChatSessionDetailDto) {
+            val updatedAt = detail.updatedAt?.trim().orEmpty()
+            val updatedAtMs =
+                runCatching { Instant.parse(updatedAt).toEpochMilli() }.getOrNull()
+            if (updatedAtMs != null && updatedAtMs > 0) {
+                sessionStore.setSessionUpdatedAtMs(updatedAtMs)
+            }
+        }
+
+        private fun parseSessionVariables(detail: ChatSessionDetailDto): Map<String, Any> {
+            val metadata = detail.metadata ?: return emptyMap()
+            val raw = metadata["xb_vars"] ?: metadata["xbVars"]
+            return toStringMap(raw)
+        }
+
+        private fun toStringMap(raw: Any?): Map<String, Any> {
+            if (raw !is Map<*, *>) return emptyMap()
+            val out = mutableMapOf<String, Any>()
+            for ((key, value) in raw) {
+                if (key is String && value != null) {
+                    out[key] = value
+                }
+            }
+            return out
         }
 
         private suspend fun updateSwipeState(

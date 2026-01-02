@@ -5,6 +5,12 @@
     <string name="common_confirm">Confirm</string>
     <string name="common_close">Close</string>
     <string name="common_copy">Copy</string>
+    <string name="common_apply">Apply</string>
+    <string name="common_add">Add</string>
+    <string name="common_update">Update</string>
+    <string name="common_edit">Edit</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_clear">Clear</string>
     <string name="common_details">Details</string>
     <string name="common_follow">Follow</string>
     <string name="common_unfollow">Unfollow</string>
@@ -24,6 +30,7 @@
     <string name="common_share">Share</string>
     <string name="common_start_chat">Start Chat</string>
     <string name="common_chat">Chat</string>
+    <string name="common_comments">Comments</string>
     <string name="compliance_loading">Completing compliance checks...</string>
     <string name="content_mature_disabled_title">Mature content disabled</string>
     <string name="content_mature_disabled_body">Enable 18+ content in Settings to continue.</string>
@@ -43,6 +50,7 @@
     <string name="main_tab_logout">Logout</string>
 
     <string name="chat_nav_chats">Chats</string>
+    <string name="chat_action_variables">Variables</string>
     <string name="chat_action_share">Share</string>
     <string name="chat_action_report">Report</string>
     <string name="chat_action_block">Block</string>
@@ -64,6 +72,12 @@
     <string name="chat_share_code_label">Share code: %1$s</string>
     <string name="chat_app_link_label">App link: %1$s</string>
     <string name="chat_copy_app_link">Copy app link</string>
+    <string name="chat_variables_title">Session Variables</string>
+    <string name="chat_variables_label">Variables (JSON)</string>
+    <string name="chat_variables_save">Save</string>
+    <string name="chat_variables_hint">Session-only variables (xb_vars). Prompt-Template setvar syncs here; /setglobalvar maps to this session.</string>
+    <string name="chat_variables_loading">Loading variables...</string>
+    <string name="chat_variables_invalid_json">Invalid JSON object.</string>
     <string name="chat_share_resolving_title">Resolving share code</string>
     <string name="chat_share_resolving_body">Preparing your chat...</string>
     <string name="chat_share_invalid_title">Share code invalid</string>
@@ -76,6 +90,16 @@
     <string name="chat_label_user">YOU</string>
     <string name="chat_label_assistant">BOT</string>
     <string name="chat_share_code_inline">Share code: %1$s</string>
+
+    <string name="comments_title">Comments</string>
+    <string name="comments_total_count">Total: %1$d</string>
+    <string name="comments_sort_hot">Hot</string>
+    <string name="comments_sort_new">New</string>
+    <string name="comments_empty">No comments yet.</string>
+    <string name="comments_placeholder">Write a comment</string>
+    <string name="comments_replying_to">Replying to %1$s</string>
+    <string name="comments_like">Like</string>
+    <string name="comments_reply">Reply</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_privacy_title">Privacy</string>
@@ -101,6 +125,15 @@
     <string name="settings_language_system">System</string>
     <string name="settings_language_english">English</string>
     <string name="settings_language_zh_cn">Chinese (Simplified)</string>
+    <string name="settings_model_presets_title">Model Presets</string>
+
+    <string name="model_presets_title">Model Presets</string>
+    <string name="model_presets_use_default">Use default</string>
+    <string name="model_presets_default">Default</string>
+    <string name="model_presets_selected">Selected</string>
+    <string name="model_presets_unknown_provider">Unknown provider</string>
+    <string name="model_presets_unknown_model">Unknown model</string>
+    <string name="model_presets_provider_model">Provider: %1$s / %2$s</string>
 
     <string name="age_verify_title">Age verification</string>
     <string name="age_verify_birth_label">Birth date (YYYY-MM-DD)</string>
@@ -120,6 +153,7 @@
     <string name="explore_followers">Followers: %1$d</string>
 
     <string name="chats_updated">Updated: %1$s</string>
+    <string name="chats_resume_last">Continue last chat</string>
 
     <string name="character_creator">Creator: %1$s</string>
     <string name="character_followers">Followers: %1$d</string>
@@ -129,6 +163,7 @@
 
     <string name="creators_title">Creators</string>
     <string name="creators_assistant">Creator Assistant</string>
+    <string name="creators_create_role">Create Character</string>
     <string name="creators_search_label">Search creators</string>
     <string name="creators_followers_interactions">Followers: %1$d - Interactions: %2$d</string>
     <string name="creators_characters">Characters</string>
@@ -168,6 +203,7 @@
     <string name="profile_email">Email: %1$s</string>
     <string name="profile_tos_version">TOS version: %1$s</string>
     <string name="profile_tos_accepted">TOS accepted: %1$s</string>
+    <string name="profile_worldinfo">WorldInfo</string>
 
     <string name="social_title">Social</string>
     <string name="social_tab_followers">Followers</string>
@@ -212,4 +248,65 @@
     <string name="assistant_status_unknown">unknown</string>
     <string name="assistant_label_user">YOU</string>
     <string name="assistant_label_assistant">ASSISTANT</string>
+
+    <string name="create_role_title">Create Character</string>
+    <string name="create_role_edit_id">Edit character ID (optional)</string>
+    <string name="create_role_load">Load</string>
+    <string name="create_role_editor_mode">Editor mode</string>
+    <string name="create_role_editor_basic">Basic</string>
+    <string name="create_role_editor_raw">Raw JSON</string>
+    <string name="create_role_template">Template</string>
+    <string name="create_role_import">Import</string>
+    <string name="create_role_export">Export</string>
+    <string name="create_role_export_png">Export PNG</string>
+    <string name="create_role_parse_text_title">Parse text</string>
+    <string name="create_role_parse_text_filename">File name (optional)</string>
+    <string name="create_role_parse_text_content">Text content</string>
+    <string name="create_role_parse_text_action">Parse</string>
+    <string name="create_role_raw_json">Card JSON (SillyTavern v3 wrapper)</string>
+    <string name="create_role_name">Name</string>
+    <string name="create_role_description">Description</string>
+    <string name="create_role_personality">Personality</string>
+    <string name="create_role_scenario">Scenario</string>
+    <string name="create_role_first_message">Greeting</string>
+    <string name="create_role_message_example">Message example</string>
+    <string name="create_role_system_prompt">System prompt</string>
+    <string name="create_role_post_history">Post-history instructions</string>
+    <string name="create_role_creator_notes">Creator notes</string>
+    <string name="create_role_character_version">Character version</string>
+    <string name="create_role_tags">Tags (comma separated)</string>
+    <string name="create_role_alternate_greetings">Alternate greetings (one per line)</string>
+    <string name="create_role_group_only_greetings">Group-only greetings (one per line)</string>
+    <string name="create_role_avatar_url">Avatar URL</string>
+    <string name="create_role_extensions_json">Extensions JSON</string>
+    <string name="create_role_character_book_json">Lorebook JSON</string>
+    <string name="create_role_nsfw">NSFW (18+)</string>
+    <string name="create_role_visibility">Visibility</string>
+    <string name="create_role_visibility_public">Public</string>
+    <string name="create_role_visibility_private">Private</string>
+    <string name="create_role_visibility_share_only">Share only</string>
+    <string name="create_role_submit">Create</string>
+    <string name="create_role_save">Save</string>
+    <string name="create_role_created">Created: %1$s</string>
+    <string name="create_role_character_type">Character type</string>
+    <string name="create_role_type_single">Single</string>
+    <string name="create_role_type_multi">Multi</string>
+    <string name="create_role_type_simulator">Simulator</string>
+    <string name="create_role_type_extension">Extension</string>
+
+    <string name="worldinfo_title">WorldInfo</string>
+    <string name="worldinfo_scope_character_id">Scope character ID (optional)</string>
+    <string name="worldinfo_include_global">Include global entries</string>
+    <string name="worldinfo_editor_title">Entry editor</string>
+    <string name="worldinfo_editor_character_id">Entry character ID (optional)</string>
+    <string name="worldinfo_editor_keys">Keys (comma separated)</string>
+    <string name="worldinfo_editor_content">Content</string>
+    <string name="worldinfo_editor_comment">Comment</string>
+    <string name="worldinfo_editor_enabled">Enabled</string>
+    <string name="worldinfo_delete_title">Delete entry?</string>
+    <string name="worldinfo_delete_body">This will delete the selected entry.</string>
+    <string name="worldinfo_item_character_id">Character: %1$s</string>
+    <string name="worldinfo_item_global">Global</string>
+    <string name="worldinfo_item_enabled">Enabled</string>
+    <string name="worldinfo_item_disabled">Disabled</string>
 </resources>

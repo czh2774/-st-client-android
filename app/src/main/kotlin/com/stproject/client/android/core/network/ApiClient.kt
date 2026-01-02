@@ -18,7 +18,7 @@ class ApiClient
                 val env = block()
                 val code = env.code
                 val data = env.data
-                if (code != 200) {
+                if (code !in 200..299) {
                     val userMessage =
                         ApiErrorMessageMapper.toUserMessage(
                             httpStatus = 200,

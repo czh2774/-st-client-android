@@ -1,5 +1,6 @@
 package com.stproject.client.android.core.network
 
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -26,6 +27,16 @@ interface StCharacterApi {
     suspend fun generateShareCode(
         @Path("id") id: String,
     ): ApiEnvelope<ShareCodeResponseDto>
+
+    @GET("characters/{id}/export")
+    suspend fun exportCharacter(
+        @Path("id") id: String,
+    ): ResponseBody
+
+    @GET("characters/{id}/export-png")
+    suspend fun exportCharacterPng(
+        @Path("id") id: String,
+    ): ResponseBody
 
     @POST("characters/block")
     suspend fun blockCharacter(

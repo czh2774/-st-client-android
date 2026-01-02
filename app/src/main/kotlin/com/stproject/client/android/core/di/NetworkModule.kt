@@ -9,16 +9,20 @@ import com.stproject.client.android.core.network.ClientHeadersInterceptor
 import com.stproject.client.android.core.network.StApi
 import com.stproject.client.android.core.network.StAuthApi
 import com.stproject.client.android.core.network.StBaseUrlProvider
+import com.stproject.client.android.core.network.StCardApi
 import com.stproject.client.android.core.network.StCharacterApi
+import com.stproject.client.android.core.network.StCommentApi
 import com.stproject.client.android.core.network.StCreatorApi
 import com.stproject.client.android.core.network.StCreatorAssistantApi
 import com.stproject.client.android.core.network.StIapApi
 import com.stproject.client.android.core.network.StNotificationApi
 import com.stproject.client.android.core.network.StOkHttpClientFactory
+import com.stproject.client.android.core.network.StPresetApi
 import com.stproject.client.android.core.network.StReportApi
 import com.stproject.client.android.core.network.StSocialApi
 import com.stproject.client.android.core.network.StUserApi
 import com.stproject.client.android.core.network.StWalletApi
+import com.stproject.client.android.core.network.StWorldInfoApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -122,7 +126,15 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideStPresetApi(retrofit: Retrofit): StPresetApi = retrofit.create(StPresetApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideStCharacterApi(retrofit: Retrofit): StCharacterApi = retrofit.create(StCharacterApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStCommentApi(retrofit: Retrofit): StCommentApi = retrofit.create(StCommentApi::class.java)
 
     @Provides
     @Singleton
@@ -151,6 +163,10 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideStWorldInfoApi(retrofit: Retrofit): StWorldInfoApi = retrofit.create(StWorldInfoApi::class.java)
+
+    @Provides
+    @Singleton
     @Named("auth")
     fun provideAuthRetrofit(
         @Named("auth") okHttpClient: OkHttpClient,
@@ -170,4 +186,8 @@ object NetworkModule {
     ): StAuthApi {
         return retrofit.create(StAuthApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideStCardApi(retrofit: Retrofit): StCardApi = retrofit.create(StCardApi::class.java)
 }

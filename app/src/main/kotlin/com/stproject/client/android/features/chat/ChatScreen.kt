@@ -1,7 +1,10 @@
 package com.stproject.client.android.features.chat
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +17,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -34,6 +39,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.domain.model.A2UIAction
 import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatRole
 
@@ -44,12 +52,20 @@ fun ChatScreen(
     viewModel: ChatViewModel,
     moderationViewModel: ModerationViewModel,
     onBackToList: () -> Unit,
+    contentGate: ContentGate,
+    onOpenWallet: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
+    onOpenShop: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val variablesState by viewModel.variablesUiState.collectAsState()
+    val a2uiState by viewModel.a2uiState.collectAsState()
     val moderationState by moderationViewModel.uiState.collectAsState()
     var reportOpen by remember { mutableStateOf(false) }
     var blockConfirmOpen by remember { mutableStateOf(false) }
-    var deleteConfirmMode by remember { mutableStateOf<Boolean?>(null) }
+    var deleteTarget by remember { mutableStateOf<ChatMessage?>(null) }
+    var deleteAfter by remember { mutableStateOf(false) }
+    var variablesOpen by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     val lastAssistant = uiState.messages.lastOrNull { it.role == ChatRole.Assistant }
     val canActOnLast =
@@ -72,6 +88,12 @@ fun ChatScreen(
                     Text(stringResource(R.string.chat_nav_chats))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = { variablesOpen = true },
+                        enabled = !uiState.isActionRunning && !variablesState.isSaving,
+                    ) {
+                        Text(stringResource(R.string.chat_action_variables))
+                    }
                     TextButton(
                         onClick = viewModel::requestShareCode,
                         enabled = !uiState.isActionRunning && !uiState.isSending,
@@ -118,6 +140,25 @@ fun ChatScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
+            if (a2uiState != null) {
+                A2UISurfacesPanel(
+                    state = a2uiState,
+                    isBusy = uiState.isSending || uiState.isActionRunning,
+                    onAction = { action ->
+                        viewModel.onA2UIAction(action)
+                        handleA2UINavigation(action, onOpenWallet, onOpenSettings, onOpenShop)
+                    },
+                )
+            }
+            if (uiState.activeCharacterIsNsfw == true && contentGate.nsfwAllowed) {
+                RestrictedContentNotice(
+                    onReport = {
+                        reportOpen = true
+                        moderationViewModel.loadReasonsIfNeeded()
+                    },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+            }
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -126,6 +167,17 @@ fun ChatScreen(
                     ChatMessageRow(
                         msg = msg,
                         isBusy = uiState.isActionRunning || uiState.isSending,
+                        onCopy = { message ->
+                            clipboard.setText(AnnotatedString(message.content))
+                        },
+                        onDelete = { message ->
+                            deleteTarget = message
+                            deleteAfter = false
+                        },
+                        onDeleteAfter = { message ->
+                            deleteTarget = message
+                            deleteAfter = true
+                        },
                         onSwipePrev = { message ->
                             val swipeId = message.swipeId ?: return@ChatMessageRow
                             viewModel.setActiveSwipe(message, swipeId - 1)
@@ -158,18 +210,6 @@ fun ChatScreen(
                         enabled = canActOnLast,
                     ) {
                         Text(stringResource(R.string.chat_continue))
-                    }
-                    TextButton(
-                        onClick = { deleteConfirmMode = false },
-                        enabled = canActOnLast,
-                    ) {
-                        Text(stringResource(R.string.chat_delete))
-                    }
-                    TextButton(
-                        onClick = { deleteConfirmMode = true },
-                        enabled = canActOnLast,
-                    ) {
-                        Text(stringResource(R.string.chat_delete_after))
                     }
                 }
             }
@@ -242,6 +282,72 @@ fun ChatScreen(
         )
     }
 
+    LaunchedEffect(variablesOpen) {
+        if (variablesOpen) {
+            viewModel.loadVariables()
+        }
+    }
+
+    if (variablesOpen) {
+        AlertDialog(
+            onDismissRequest = { variablesOpen = false },
+            title = { Text(stringResource(R.string.chat_variables_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (variablesState.isLoading) {
+                        Text(stringResource(R.string.chat_variables_loading))
+                    }
+                    variablesState.error?.let { err ->
+                        Text(
+                            text =
+                                if (err == "invalid json") {
+                                    stringResource(R.string.chat_variables_invalid_json)
+                                } else {
+                                    err
+                                },
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = variablesState.text,
+                        onValueChange = viewModel::updateVariablesText,
+                        label = { Text(stringResource(R.string.chat_variables_label)) },
+                        enabled = !variablesState.isLoading && !variablesState.isSaving,
+                        minLines = 6,
+                        maxLines = 12,
+                    )
+                    Text(
+                        text = stringResource(R.string.chat_variables_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = viewModel::saveVariables,
+                    enabled =
+                        variablesState.isDirty &&
+                            !variablesState.isLoading &&
+                            !variablesState.isSaving,
+                ) {
+                    if (variablesState.isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.padding(end = 8.dp),
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                    Text(stringResource(R.string.chat_variables_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { variablesOpen = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+        )
+    }
+
     if (uiState.shareInfo != null) {
         val shareInfo = uiState.shareInfo
         val shareCode = shareInfo?.shareCode?.trim().orEmpty()
@@ -288,10 +394,10 @@ fun ChatScreen(
         )
     }
 
-    if (deleteConfirmMode != null && lastAssistant != null) {
-        val deleteAfter = deleteConfirmMode == true
+    if (deleteTarget != null) {
+        val target = deleteTarget
         AlertDialog(
-            onDismissRequest = { deleteConfirmMode = null },
+            onDismissRequest = { deleteTarget = null },
             title = {
                 Text(
                     stringResource(
@@ -315,15 +421,17 @@ fun ChatScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        deleteConfirmMode = null
-                        viewModel.deleteMessage(lastAssistant, deleteAfter)
+                        deleteTarget = null
+                        if (target != null) {
+                            viewModel.deleteMessage(target, deleteAfter)
+                        }
                     },
                 ) {
                     Text(stringResource(R.string.common_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deleteConfirmMode = null }) {
+                TextButton(onClick = { deleteTarget = null }) {
                     Text(stringResource(R.string.common_cancel))
                 }
             },
@@ -332,9 +440,13 @@ fun ChatScreen(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun ChatMessageRow(
     msg: ChatMessage,
     isBusy: Boolean,
+    onCopy: (ChatMessage) -> Unit,
+    onDelete: (ChatMessage) -> Unit,
+    onDeleteAfter: (ChatMessage) -> Unit,
     onSwipePrev: (ChatMessage) -> Unit,
     onSwipeNext: (ChatMessage) -> Unit,
     onDeleteSwipe: (ChatMessage) -> Unit,
@@ -345,8 +457,49 @@ private fun ChatMessageRow(
             ChatRole.User -> stringResource(R.string.chat_label_user)
             ChatRole.Assistant -> stringResource(R.string.chat_label_assistant)
         }
+    val canDelete = msg.serverId != null && !isBusy && !msg.isStreaming
+    var menuOpen by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(text = "[$prefix] ${msg.content}")
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = { menuOpen = true },
+                        ),
+                text = "[$prefix] ${msg.content}",
+            )
+            DropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.common_copy)) },
+                    onClick = {
+                        menuOpen = false
+                        onCopy(msg)
+                    },
+                )
+                if (canDelete) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_delete)) },
+                        onClick = {
+                            menuOpen = false
+                            onDelete(msg)
+                        },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_delete_after)) },
+                        onClick = {
+                            menuOpen = false
+                            onDeleteAfter(msg)
+                        },
+                    )
+                }
+            }
+        }
         val swipeCount = msg.swipes.size
         val swipeId = msg.swipeId
         if (swipeId != null && swipeCount > 1 && msg.role == ChatRole.Assistant) {
@@ -377,6 +530,38 @@ private fun ChatMessageRow(
                 ) {
                     Text(stringResource(R.string.chat_swipe_delete))
                 }
+            }
+        }
+        if (canDelete) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = { onDelete(msg) }) {
+                    Text(stringResource(R.string.chat_delete))
+                }
+                TextButton(onClick = { onDeleteAfter(msg) }) {
+                    Text(stringResource(R.string.chat_delete_after))
+                }
+            }
+        }
+    }
+}
+
+private fun handleA2UINavigation(
+    action: A2UIAction,
+    onOpenWallet: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenShop: () -> Unit,
+) {
+    when (action.normalizedName) {
+        "purchase" -> onOpenShop()
+        "navigate" -> {
+            when (action.contextString("destination")?.lowercase()) {
+                "wallet" -> onOpenWallet()
+                "settings" -> onOpenSettings()
+                "shop" -> onOpenShop()
             }
         }
     }

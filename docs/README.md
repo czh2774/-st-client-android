@@ -9,4 +9,6 @@
 - [ALIGNMENT_AUDIT.md](ALIGNMENT_AUDIT.md)：Android vs React alignment audit
 - [ALIGNMENT_TASKS.md](ALIGNMENT_TASKS.md)：Prioritized alignment backlog
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)：Implementation plan for parity + compliance
+- [PLAY_COMPLIANCE_PLAN.md](PLAY_COMPLIANCE_PLAN.md)：Google Play 18+ compliance plan
+- [TEST_PLAN.md](TEST_PLAN.md)：Parity + compliance test plan
 - (待补充) 鉴权与 Cookie 处理方案

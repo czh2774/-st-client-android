@@ -22,15 +22,17 @@ class HttpReportRepository
         }
 
         override suspend fun submitReport(
+            targetType: String,
             targetId: String,
             reasons: List<String>,
             detail: String?,
             sessionId: String?,
         ) {
+            val resolvedType = targetType.trim().ifEmpty { "character" }
             apiClient.call {
                 api.createReport(
                     ReportRequestDto(
-                        targetType = "character",
+                        targetType = resolvedType,
                         targetId = targetId,
                         reasons = reasons,
                         detail = detail?.trim()?.takeIf { it.isNotEmpty() },

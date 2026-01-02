@@ -5,5 +5,6 @@ import com.stproject.client.android.domain.model.ChatSessionSummary
 data class ChatsListUiState(
     val isLoading: Boolean = false,
     val items: List<ChatSessionSummary> = emptyList(),
+    val lastSession: ChatSessionSummary? = null,
     val error: String? = null,
 )

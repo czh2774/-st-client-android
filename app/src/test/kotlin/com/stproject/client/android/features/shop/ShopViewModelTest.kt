@@ -35,6 +35,8 @@ import org.junit.Test
 class ShopViewModelTest : BaseUnitTest() {
     private class FakeIapRepository(
         private val kind: String,
+        private val transactionResult: IapTransactionResult =
+            IapTransactionResult(ok = true, status = "processed", serverTimeMs = 0),
     ) : IapRepository {
         val submitted = mutableListOf<IapTransactionRequest>()
 
@@ -59,7 +61,7 @@ class ShopViewModelTest : BaseUnitTest() {
 
         override suspend fun submitTransaction(request: IapTransactionRequest): IapTransactionResult {
             submitted.add(request)
-            return IapTransactionResult(ok = true, status = "processed", serverTimeMs = 0)
+            return transactionResult
         }
 
         override suspend fun restore(request: IapRestoreRequest): IapRestoreResult {
@@ -194,5 +196,85 @@ class ShopViewModelTest : BaseUnitTest() {
             assertEquals(1, repo.submitted.size)
             coVerify { billingManager.acknowledgePurchase("token-2") }
             coVerify(exactly = 0) { billingManager.consumePurchase(any()) }
+        }
+
+    @Test
+    fun `purchase acknowledgement failure surfaces error`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val updates = MutableSharedFlow<BillingPurchaseUpdate>(extraBufferCapacity = 1)
+            val billingManager = mockk<BillingManager>()
+            every { billingManager.purchaseUpdates } returns updates
+            coEvery { billingManager.queryProductDetails(any()) } returns emptyList()
+            coEvery { billingManager.connect() } returns true
+            coEvery { billingManager.consumePurchase(any()) } returns false
+            coEvery { billingManager.acknowledgePurchase(any()) } returns false
+
+            val repo = FakeIapRepository(kind = "credits")
+            val viewModel = createViewModel(repo, billingManager)
+
+            viewModel.load()
+            advanceUntilIdle()
+
+            val purchase = mockk<Purchase>()
+            every { purchase.purchaseState } returns Purchase.PurchaseState.PURCHASED
+            every { purchase.purchaseToken } returns "token-3"
+            every { purchase.products } returns listOf("prod-1")
+            every { purchase.orderId } returns "order-3"
+            every { purchase.purchaseTime } returns 789L
+            every { purchase.originalJson } returns "{\"productId\":\"prod-1\"}"
+            every { purchase.signature } returns "sig"
+            every { purchase.isAcknowledged } returns false
+
+            val result =
+                BillingResult.newBuilder()
+                    .setResponseCode(BillingClient.BillingResponseCode.OK)
+                    .build()
+            updates.emit(BillingPurchaseUpdate(result, listOf(purchase)))
+            advanceUntilIdle()
+
+            assertEquals("purchase acknowledgement failed", viewModel.uiState.value.error)
+        }
+
+    @Test
+    fun `purchase verification failure skips acknowledgement`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val updates = MutableSharedFlow<BillingPurchaseUpdate>(extraBufferCapacity = 1)
+            val billingManager = mockk<BillingManager>()
+            every { billingManager.purchaseUpdates } returns updates
+            coEvery { billingManager.queryProductDetails(any()) } returns emptyList()
+            coEvery { billingManager.connect() } returns true
+            coEvery { billingManager.consumePurchase(any()) } returns true
+            coEvery { billingManager.acknowledgePurchase(any()) } returns true
+
+            val repo =
+                FakeIapRepository(
+                    kind = "credits",
+                    transactionResult = IapTransactionResult(ok = false, status = "verification_failed", serverTimeMs = 0),
+                )
+            val viewModel = createViewModel(repo, billingManager)
+
+            viewModel.load()
+            advanceUntilIdle()
+
+            val purchase = mockk<Purchase>()
+            every { purchase.purchaseState } returns Purchase.PurchaseState.PURCHASED
+            every { purchase.purchaseToken } returns "token-4"
+            every { purchase.products } returns listOf("prod-1")
+            every { purchase.orderId } returns "order-4"
+            every { purchase.purchaseTime } returns 321L
+            every { purchase.originalJson } returns "{\"productId\":\"prod-1\"}"
+            every { purchase.signature } returns "sig"
+            every { purchase.isAcknowledged } returns false
+
+            val result =
+                BillingResult.newBuilder()
+                    .setResponseCode(BillingClient.BillingResponseCode.OK)
+                    .build()
+            updates.emit(BillingPurchaseUpdate(result, listOf(purchase)))
+            advanceUntilIdle()
+
+            assertEquals("verification_failed", viewModel.uiState.value.error)
+            coVerify(exactly = 0) { billingManager.consumePurchase(any()) }
+            coVerify(exactly = 0) { billingManager.acknowledgePurchase(any()) }
         }
 }

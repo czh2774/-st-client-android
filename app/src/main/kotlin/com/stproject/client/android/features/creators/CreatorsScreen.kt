@@ -22,20 +22,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.features.chat.ModerationViewModel
+import com.stproject.client.android.features.chat.ReportDialog
 import com.stproject.client.android.domain.model.CreatorSummary
 
 @Composable
 fun CreatorsScreen(
     viewModel: CreatorsViewModel,
+    moderationViewModel: ModerationViewModel,
     onOpenCreator: (String) -> Unit,
     onOpenAssistant: () -> Unit,
+    onOpenCreateRole: () -> Unit,
+    contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val moderationState by moderationViewModel.uiState.collectAsState()
+    var reportTargetId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.load()
@@ -56,8 +68,14 @@ fun CreatorsScreen(
                     text = stringResource(R.string.creators_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
+                if (contentGate.nsfwAllowed) {
+                    RestrictedContentNotice(onReport = null)
+                }
                 Button(onClick = onOpenAssistant) {
                     Text(stringResource(R.string.creators_assistant))
+                }
+                Button(onClick = onOpenCreateRole) {
+                    Text(stringResource(R.string.creators_create_role))
                 }
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
@@ -93,6 +111,17 @@ fun CreatorsScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
+            if (moderationState.error != null) {
+                Text(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = moderationState.error ?: "",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -103,6 +132,10 @@ fun CreatorsScreen(
                         onOpenCreator = onOpenCreator,
                         onFollowToggle = { creatorId, follow ->
                             viewModel.followCreator(creatorId, follow)
+                        },
+                        onReport = { creatorId ->
+                            reportTargetId = creatorId
+                            moderationViewModel.loadReasonsIfNeeded()
                         },
                     )
                 }
@@ -129,6 +162,23 @@ fun CreatorsScreen(
             }
         }
     }
+
+    if (reportTargetId != null) {
+        ReportDialog(
+            state = moderationState,
+            onDismiss = { reportTargetId = null },
+            onSubmit = { reasons, detail ->
+                val targetId = reportTargetId ?: return@ReportDialog
+                moderationViewModel.submitReportForUser(targetId, reasons, detail)
+            },
+        )
+    }
+
+    LaunchedEffect(moderationState.lastReportSubmitted) {
+        if (moderationState.lastReportSubmitted) {
+            reportTargetId = null
+        }
+    }
 }
 
 @Composable
@@ -136,6 +186,7 @@ private fun CreatorRow(
     item: CreatorSummary,
     onOpenCreator: (String) -> Unit,
     onFollowToggle: (String, Boolean) -> Unit,
+    onReport: (String) -> Unit,
 ) {
     val isFollowing = item.followStatus == 1 || item.followStatus == 3
     Column(
@@ -164,6 +215,10 @@ private fun CreatorRow(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            TextButton(onClick = { onReport(item.id) }) {
+                Text(stringResource(R.string.common_report))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
             TextButton(
                 onClick = { onFollowToggle(item.id, !isFollowing) },
                 enabled = !item.isBlocked,

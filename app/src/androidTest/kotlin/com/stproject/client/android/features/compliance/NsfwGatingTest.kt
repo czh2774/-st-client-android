@@ -9,10 +9,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.stproject.client.android.R
+import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentAccessManager
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.session.ChatSessionStore
+import com.stproject.client.android.domain.model.A2UIAction
+import com.stproject.client.android.domain.model.A2UIActionResult
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
@@ -26,8 +29,11 @@ import com.stproject.client.android.domain.repository.ReportRepository
 import com.stproject.client.android.domain.usecase.BlockCharacterUseCase
 import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
+import com.stproject.client.android.domain.usecase.SendUserMessageUseCase
 import com.stproject.client.android.features.characters.CharacterDetailScreen
 import com.stproject.client.android.features.characters.CharacterDetailViewModel
+import com.stproject.client.android.features.chat.ChatScreen
+import com.stproject.client.android.features.chat.ChatViewModel
 import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chats.ChatsListScreen
 import com.stproject.client.android.features.chats.ChatsListViewModel
@@ -227,6 +233,7 @@ class NsfwGatingTest {
                 moderationViewModel = moderationViewModel,
                 onBack = {},
                 onStartChat = { _, _ -> },
+                onOpenComments = {},
                 contentGate = contentGate,
             )
         }
@@ -301,11 +308,66 @@ class NsfwGatingTest {
             }
         }
     }
+
+    @Test
+    fun chatShowsRestrictedNoticeWhenNsfwAllowed() {
+        val noticeText = composeRule.activity.getString(R.string.content_restricted_notice)
+        val contentGate =
+            ContentGate(
+                consentLoaded = true,
+                consentRequired = false,
+                ageVerified = true,
+                allowNsfwPreference = true,
+            )
+        val chatRepo = FakeChatRepository(sessions = emptyList())
+        val characterRepo =
+            FakeCharacterRepository(
+                items = emptyList(),
+                details =
+                    mapOf(
+                        "char-1" to nsfwDetail("char-1"),
+                    ),
+            )
+        val chatViewModel =
+            ChatViewModel(
+                chatRepository = chatRepo,
+                sendUserMessage = SendUserMessageUseCase(chatRepo),
+                characterRepository = characterRepo,
+                chatSessionStore = FakeChatSessionStore(),
+                resolveContentAccess =
+                    ResolveContentAccessUseCase(
+                        accessManager = AllowAllAccessManager(),
+                        characterRepository = characterRepo,
+                    ),
+            )
+        val moderationViewModel =
+            ModerationViewModel(
+                reportRepository = FakeReportRepository(),
+                chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase = createBlockCharacterUseCase(characterRepo),
+            )
+
+        composeRule.setContent {
+            ChatScreen(
+                viewModel = chatViewModel,
+                moderationViewModel = moderationViewModel,
+                onBackToList = {},
+                contentGate = contentGate,
+            )
+        }
+
+        composeRule.runOnIdle {
+            chatViewModel.startNewChat("char-1")
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(noticeText).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText(noticeText).assertIsDisplayed()
+    }
 }
 
-private fun createFollowCharacterUseCase(
-    repo: CharacterRepository,
-): FollowCharacterUseCase {
+private fun createFollowCharacterUseCase(repo: CharacterRepository): FollowCharacterUseCase {
     return FollowCharacterUseCase(
         characterRepository = repo,
         resolveContentAccess =
@@ -316,9 +378,7 @@ private fun createFollowCharacterUseCase(
     )
 }
 
-private fun createBlockCharacterUseCase(
-    repo: CharacterRepository,
-): BlockCharacterUseCase {
+private fun createBlockCharacterUseCase(repo: CharacterRepository): BlockCharacterUseCase {
     return BlockCharacterUseCase(
         characterRepository = repo,
         resolveContentAccess =
@@ -334,8 +394,14 @@ private class FakeChatRepository(
 ) : ChatRepository {
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     override val messages: Flow<List<ChatMessage>> = _messages.asStateFlow()
+    override val a2uiState: Flow<A2UIRuntimeState?> =
+        MutableStateFlow(null)
 
     override suspend fun sendUserMessage(content: String) = Unit
+
+    override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
+        return A2UIActionResult(accepted = false, reason = "not_supported")
+    }
 
     override suspend fun startNewSession(
         memberId: String,
@@ -351,6 +417,8 @@ private class FakeChatRepository(
         limit: Int,
         offset: Int,
     ): List<ChatSessionSummary> = sessions
+
+    override suspend fun getLastSessionSummary(): ChatSessionSummary? = null
 
     override suspend fun regenerateMessage(messageId: String) = Unit
 
@@ -370,6 +438,10 @@ private class FakeChatRepository(
         messageId: String,
         swipeId: Int?,
     ) = Unit
+
+    override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+
+    override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
 
     override suspend fun clearLocalSession() {
         _messages.value = emptyList()
@@ -424,6 +496,7 @@ private class FakeReportRepository : ReportRepository {
     }
 
     override suspend fun submitReport(
+        targetType: String,
         targetId: String,
         reasons: List<String>,
         detail: String?,

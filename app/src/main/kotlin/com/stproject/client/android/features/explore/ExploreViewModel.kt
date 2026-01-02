@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
-import com.stproject.client.android.core.compliance.ContentBlockReason
+import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
@@ -40,7 +40,7 @@ class ExploreViewModel
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                accessError = accessErrorMessage(access),
+                                accessError = access.userMessage(),
                             )
                         }
                         return@launch
@@ -77,7 +77,7 @@ class ExploreViewModel
                     val isNsfwHint = _uiState.value.items.firstOrNull { it.id == cleanId }?.isNsfw
                     val result = followCharacterUseCase.execute(cleanId, isNsfwHint, value)
                     if (result is GuardedActionResult.Blocked) {
-                        _uiState.update { it.copy(error = accessErrorMessage(result.decision)) }
+                        _uiState.update { it.copy(error = result.decision.userMessage()) }
                         return@launch
                     }
                     _uiState.update { state ->
@@ -143,7 +143,7 @@ class ExploreViewModel
                         _uiState.update {
                             it.copy(
                                 isResolvingShareCode = false,
-                                accessError = accessErrorMessage(access),
+                                accessError = access.userMessage(),
                             )
                         }
                         return@launch
@@ -191,14 +191,5 @@ class ExploreViewModel
             val parsed = runCatching { Uri.parse(trimmed) }.getOrNull()
             val queryCode = parsed?.getQueryParameter("shareCode")?.trim()
             return if (!queryCode.isNullOrEmpty()) queryCode else trimmed
-        }
-
-        private fun accessErrorMessage(access: ContentAccessDecision.Blocked): String {
-            return when (access.reason) {
-                ContentBlockReason.NSFW_DISABLED -> "mature content disabled"
-                ContentBlockReason.AGE_REQUIRED -> "age verification required"
-                ContentBlockReason.CONSENT_REQUIRED -> "terms acceptance required"
-                ContentBlockReason.CONSENT_PENDING -> "compliance not loaded"
-            }
         }
     }

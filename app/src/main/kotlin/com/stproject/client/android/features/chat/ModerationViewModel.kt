@@ -3,8 +3,7 @@ package com.stproject.client.android.features.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stproject.client.android.core.common.rethrowIfCancellation
-import com.stproject.client.android.core.compliance.ContentAccessDecision
-import com.stproject.client.android.core.compliance.ContentBlockReason
+import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.core.session.ChatSessionStore
 import com.stproject.client.android.domain.repository.ReportRepository
@@ -61,10 +60,12 @@ class ModerationViewModel
             detail: String?,
         ) {
             submitReportInternal(
+                targetType = "character",
                 reasons = reasons,
                 detail = detail,
                 targetId = null,
                 sessionId = chatSessionStore.getSessionId(),
+                allowFallback = true,
             )
         }
 
@@ -73,7 +74,44 @@ class ModerationViewModel
             reasons: List<String>,
             detail: String?,
         ) {
-            submitReportInternal(reasons = reasons, detail = detail, targetId = targetId, sessionId = null)
+            submitReportInternal(
+                targetType = "character",
+                reasons = reasons,
+                detail = detail,
+                targetId = targetId,
+                sessionId = null,
+                allowFallback = true,
+            )
+        }
+
+        fun submitReportForComment(
+            commentId: String,
+            reasons: List<String>,
+            detail: String?,
+        ) {
+            submitReportInternal(
+                targetType = "comment",
+                reasons = reasons,
+                detail = detail,
+                targetId = commentId,
+                sessionId = null,
+                allowFallback = false,
+            )
+        }
+
+        fun submitReportForUser(
+            userId: String,
+            reasons: List<String>,
+            detail: String?,
+        ) {
+            submitReportInternal(
+                targetType = "user",
+                reasons = reasons,
+                detail = detail,
+                targetId = userId,
+                sessionId = null,
+                allowFallback = false,
+            )
         }
 
         fun blockDefaultCharacter() {
@@ -85,22 +123,31 @@ class ModerationViewModel
         }
 
         private fun submitReportInternal(
+            targetType: String,
             reasons: List<String>,
             detail: String?,
             targetId: String?,
             sessionId: String?,
+            allowFallback: Boolean,
         ) {
             val state = _uiState.value
             if (state.isSubmitting) return
-            val resolvedTargetId = resolveTargetId(targetId)
+            val resolvedTargetId = resolveTargetId(targetId, allowFallback)
             if (resolvedTargetId.isEmpty()) {
-                _uiState.update { it.copy(error = "character not selected") }
+                val message =
+                    when (targetType) {
+                        "comment" -> "comment not selected"
+                        "user" -> "user not selected"
+                        else -> "character not selected"
+                    }
+                _uiState.update { it.copy(error = message) }
                 return
             }
             _uiState.update { it.copy(isSubmitting = true, error = null, lastReportSubmitted = false) }
             viewModelScope.launch {
                 try {
                     reportRepository.submitReport(
+                        targetType = targetType,
                         targetId = resolvedTargetId,
                         reasons = reasons,
                         detail = detail,
@@ -119,7 +166,7 @@ class ModerationViewModel
         private fun blockCharacterInternal(targetId: String?) {
             val state = _uiState.value
             if (state.isSubmitting) return
-            val resolvedTargetId = resolveTargetId(targetId)
+            val resolvedTargetId = resolveTargetId(targetId, true)
             if (resolvedTargetId.isEmpty()) {
                 _uiState.update { it.copy(error = "character not selected") }
                 return
@@ -135,7 +182,7 @@ class ModerationViewModel
                         )
                     if (result is GuardedActionResult.Blocked) {
                         _uiState.update {
-                            it.copy(isSubmitting = false, error = accessErrorMessage(result.decision))
+                            it.copy(isSubmitting = false, error = result.decision.userMessage())
                         }
                         return@launch
                     }
@@ -151,18 +198,13 @@ class ModerationViewModel
             }
         }
 
-        private fun accessErrorMessage(access: ContentAccessDecision.Blocked): String {
-            return when (access.reason) {
-                ContentBlockReason.NSFW_DISABLED -> "mature content disabled"
-                ContentBlockReason.AGE_REQUIRED -> "age verification required"
-                ContentBlockReason.CONSENT_REQUIRED -> "terms acceptance required"
-                ContentBlockReason.CONSENT_PENDING -> "compliance not loaded"
-            }
-        }
-
-        private fun resolveTargetId(targetId: String?): String {
+        private fun resolveTargetId(
+            targetId: String?,
+            allowFallback: Boolean,
+        ): String {
             val trimmed = targetId?.trim()?.takeIf { it.isNotEmpty() }
             if (trimmed != null) return trimmed
+            if (!allowFallback) return ""
             return chatSessionStore.getPrimaryMemberId()?.trim().orEmpty()
         }
     }

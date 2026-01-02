@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
-import com.stproject.client.android.core.compliance.ContentBlockReason
+import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
@@ -43,7 +43,7 @@ class CharacterDetailViewModel
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                error = accessErrorMessage(access),
+                                error = access.userMessage(),
                                 detail = null,
                             )
                         }
@@ -68,7 +68,7 @@ class CharacterDetailViewModel
                             isNsfwHint = _uiState.value.detail?.isNsfw,
                         )
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(error = accessErrorMessage(access)) }
+                        _uiState.update { it.copy(error = access.userMessage()) }
                         return@launch
                     }
                     val info = characterRepository.generateShareCode(characterId)
@@ -97,7 +97,7 @@ class CharacterDetailViewModel
                             value,
                         )
                     if (result is GuardedActionResult.Blocked) {
-                        _uiState.update { it.copy(error = accessErrorMessage(result.decision)) }
+                        _uiState.update { it.copy(error = result.decision.userMessage()) }
                         return@launch
                     }
                     _uiState.update { state ->
@@ -121,15 +121,6 @@ class CharacterDetailViewModel
                     e.rethrowIfCancellation()
                     _uiState.update { it.copy(error = "unexpected error") }
                 }
-            }
-        }
-
-        private fun accessErrorMessage(access: ContentAccessDecision.Blocked): String {
-            return when (access.reason) {
-                ContentBlockReason.NSFW_DISABLED -> "mature content disabled"
-                ContentBlockReason.AGE_REQUIRED -> "age verification required"
-                ContentBlockReason.CONSENT_REQUIRED -> "terms acceptance required"
-                ContentBlockReason.CONSENT_PENDING -> "compliance not loaded"
             }
         }
     }

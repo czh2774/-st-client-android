@@ -65,6 +65,23 @@ fun ChatsListScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
+            if (uiState.lastSession != null) {
+                val lastSession = uiState.lastSession
+                LastSessionCard(
+                    item = lastSession,
+                    onOpenSession = {
+                        if (contentGate.isRestricted(lastSession?.primaryMemberIsNsfw)) {
+                            if (contentGate.isNsfwBlocked(lastSession?.primaryMemberIsNsfw)) {
+                                nsfwBlockedOpen = true
+                            }
+                            return@LastSessionCard
+                        }
+                        if (lastSession != null) {
+                            onOpenSession(lastSession)
+                        }
+                    },
+                )
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -120,6 +137,41 @@ private fun ChatSessionRow(
         ) {
             Button(onClick = { onOpenSession(item) }) {
                 Text(stringResource(R.string.common_open))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LastSessionCard(
+    item: ChatSessionSummary?,
+    onOpenSession: () -> Unit,
+) {
+    if (item == null) return
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .background(MaterialTheme.colorScheme.secondaryContainer)
+                .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(text = stringResource(R.string.chats_resume_last), style = MaterialTheme.typography.titleSmall)
+        Text(text = item.displayName, style = MaterialTheme.typography.titleMedium)
+        if (!item.updatedAt.isNullOrBlank()) {
+            Text(
+                text = stringResource(R.string.chats_updated, item.updatedAt),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(onClick = onOpenSession) {
+                Text(stringResource(R.string.common_continue))
             }
         }
     }

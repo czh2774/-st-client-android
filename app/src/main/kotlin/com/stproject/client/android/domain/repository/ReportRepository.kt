@@ -6,6 +6,7 @@ interface ReportRepository {
     suspend fun getReasonMeta(): ReportReasonMeta
 
     suspend fun submitReport(
+        targetType: String,
         targetId: String,
         reasons: List<String>,
         detail: String?,

@@ -9,5 +9,6 @@ data class ChatUiState(
     val isSending: Boolean = false,
     val isActionRunning: Boolean = false,
     val shareInfo: ShareCodeInfo? = null,
+    val activeCharacterIsNsfw: Boolean? = null,
     val error: String? = null,
 )

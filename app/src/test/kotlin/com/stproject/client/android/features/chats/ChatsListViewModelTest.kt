@@ -1,10 +1,13 @@
 package com.stproject.client.android.features.chats
 
 import com.stproject.client.android.BaseUnitTest
+import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentAccessManager
 import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.domain.model.A2UIAction
+import com.stproject.client.android.domain.model.A2UIActionResult
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
@@ -29,12 +32,19 @@ import org.junit.Test
 class ChatsListViewModelTest : BaseUnitTest() {
     private class FakeChatRepository(
         private val sessions: List<ChatSessionSummary>,
+        private val lastSession: ChatSessionSummary? = null,
     ) : ChatRepository {
         private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
         override val messages: Flow<List<ChatMessage>> = _messages.asStateFlow()
+        override val a2uiState: Flow<A2UIRuntimeState?> =
+            MutableStateFlow(null)
         var listCalls = 0
 
         override suspend fun sendUserMessage(content: String) = Unit
+
+        override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
+            return A2UIActionResult(accepted = false, reason = "not_supported")
+        }
 
         override suspend fun startNewSession(
             memberId: String,
@@ -54,6 +64,8 @@ class ChatsListViewModelTest : BaseUnitTest() {
             return sessions
         }
 
+        override suspend fun getLastSessionSummary(): ChatSessionSummary? = lastSession
+
         override suspend fun regenerateMessage(messageId: String) = Unit
 
         override suspend fun continueMessage(messageId: String) = Unit
@@ -72,6 +84,10 @@ class ChatsListViewModelTest : BaseUnitTest() {
             messageId: String,
             swipeId: Int?,
         ) = Unit
+
+        override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+
+        override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
 
         override suspend fun clearLocalSession() = Unit
     }
@@ -244,5 +260,40 @@ class ChatsListViewModelTest : BaseUnitTest() {
 
             assertTrue(viewModel.uiState.value.error?.contains("mature") == true)
             assertEquals(0, chatRepo.listCalls)
+        }
+
+    @Test
+    fun `load exposes last session summary`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val last =
+                ChatSessionSummary(
+                    sessionId = "s-last",
+                    primaryMemberId = "char-1",
+                    displayName = "Last",
+                    updatedAt = null,
+                )
+            val chatRepo = FakeChatRepository(emptyList(), lastSession = last)
+            val characterRepo =
+                FakeCharacterRepository().apply {
+                    detailMap = mapOf("char-1" to true)
+                }
+            val viewModel =
+                ChatsListViewModel(
+                    chatRepository = chatRepo,
+                    characterRepository = characterRepo,
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = characterRepo,
+                        ),
+                )
+
+            viewModel.load(allowNsfw = false)
+            advanceUntilIdle()
+
+            val resolved = viewModel.uiState.value.lastSession
+            assertEquals("s-last", resolved?.sessionId)
+            assertEquals(true, resolved?.primaryMemberIsNsfw)
+            assertEquals(1, characterRepo.detailCalls)
         }
 }

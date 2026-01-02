@@ -1,5 +1,8 @@
 package com.stproject.client.android.data.repository
 
+import com.stproject.client.android.core.a2ui.A2UIRuntimeState
+import com.stproject.client.android.domain.model.A2UIAction
+import com.stproject.client.android.domain.model.A2UIActionResult
 import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatRole
 import com.stproject.client.android.domain.repository.ChatRepository
@@ -30,8 +33,11 @@ class InMemoryChatRepository
                     ),
                 ),
             )
+        private var sessionVariables: Map<String, Any> = emptyMap()
+        private val _a2uiState = MutableStateFlow<A2UIRuntimeState?>(null)
 
         override val messages: Flow<List<ChatMessage>> = _messages.asStateFlow()
+        override val a2uiState: Flow<A2UIRuntimeState?> = _a2uiState.asStateFlow()
 
         override suspend fun sendUserMessage(content: String) {
             val user =
@@ -52,6 +58,10 @@ class InMemoryChatRepository
                     content = "Echo: $content",
                 )
             _messages.value = _messages.value + assistant
+        }
+
+        override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
+            return A2UIActionResult(accepted = false, reason = "not_supported")
         }
 
         override suspend fun startNewSession(
@@ -89,6 +99,10 @@ class InMemoryChatRepository
             return emptyList()
         }
 
+        override suspend fun getLastSessionSummary(): com.stproject.client.android.domain.model.ChatSessionSummary? {
+            return null
+        }
+
         override suspend fun regenerateMessage(messageId: String) {
             // No-op for in-memory stub.
         }
@@ -116,6 +130,14 @@ class InMemoryChatRepository
             swipeId: Int?,
         ) {
             // No-op for in-memory stub.
+        }
+
+        override suspend fun loadSessionVariables(): Map<String, Any> {
+            return sessionVariables
+        }
+
+        override suspend fun updateSessionVariables(variables: Map<String, Any>) {
+            sessionVariables = variables
         }
 
         override suspend fun clearLocalSession() {

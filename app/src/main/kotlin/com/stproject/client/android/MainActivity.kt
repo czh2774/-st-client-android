@@ -51,6 +51,10 @@ import com.stproject.client.android.features.chat.ChatViewModel
 import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chats.ChatsListScreen
 import com.stproject.client.android.features.chats.ChatsListViewModel
+import com.stproject.client.android.features.comments.CommentsScreen
+import com.stproject.client.android.features.comments.CommentsViewModel
+import com.stproject.client.android.features.creators.CreateRoleScreen
+import com.stproject.client.android.features.creators.CreateRoleViewModel
 import com.stproject.client.android.features.creators.CreatorAssistantChatScreen
 import com.stproject.client.android.features.creators.CreatorAssistantChatViewModel
 import com.stproject.client.android.features.creators.CreatorAssistantListScreen
@@ -67,6 +71,8 @@ import com.stproject.client.android.features.profile.ProfileScreen
 import com.stproject.client.android.features.profile.ProfileViewModel
 import com.stproject.client.android.features.settings.AgeVerificationDialog
 import com.stproject.client.android.features.settings.ComplianceViewModel
+import com.stproject.client.android.features.settings.ModelPresetsScreen
+import com.stproject.client.android.features.settings.ModelPresetsViewModel
 import com.stproject.client.android.features.settings.PrivacyConsentDialog
 import com.stproject.client.android.features.settings.SettingsScreen
 import com.stproject.client.android.features.shop.ShopScreen
@@ -75,6 +81,8 @@ import com.stproject.client.android.features.social.SocialScreen
 import com.stproject.client.android.features.social.SocialViewModel
 import com.stproject.client.android.features.wallet.WalletScreen
 import com.stproject.client.android.features.wallet.WalletViewModel
+import com.stproject.client.android.features.worldinfo.WorldInfoScreen
+import com.stproject.client.android.features.worldinfo.WorldInfoViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 private const val CHAT_SESSION_ROUTE = "chat/session"
@@ -86,6 +94,11 @@ private const val CREATOR_DETAIL_ROUTE = "creators/detail"
 private const val CREATOR_DETAIL_ROUTE_PATTERN = "creators/detail/{creatorId}"
 private const val CREATOR_ASSISTANT_LIST_ROUTE = "creators/assistant"
 private const val CREATOR_ASSISTANT_CHAT_ROUTE_PATTERN = "creators/assistant/{sessionId}"
+private const val WORLDINFO_ROUTE = "worldinfo"
+private const val CREATE_ROLE_ROUTE = "create/role"
+private const val COMMENTS_ROUTE = "comments"
+private const val COMMENTS_ROUTE_PATTERN = "comments/{characterId}"
+private const val MODEL_PRESETS_ROUTE = "settings/model-presets"
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -102,10 +115,14 @@ class MainActivity : ComponentActivity() {
     private val creatorCharactersViewModel: CreatorCharactersViewModel by viewModels()
     private val creatorAssistantListViewModel: CreatorAssistantListViewModel by viewModels()
     private val creatorAssistantChatViewModel: CreatorAssistantChatViewModel by viewModels()
+    private val createRoleViewModel: CreateRoleViewModel by viewModels()
     private val notificationsViewModel: NotificationsViewModel by viewModels()
     private val socialViewModel: SocialViewModel by viewModels()
     private val shopViewModel: ShopViewModel by viewModels()
     private val walletViewModel: WalletViewModel by viewModels()
+    private val modelPresetsViewModel: ModelPresetsViewModel by viewModels()
+    private val worldInfoViewModel: WorldInfoViewModel by viewModels()
+    private val commentsViewModel: CommentsViewModel by viewModels()
     private val pendingShareCode = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -149,15 +166,19 @@ class MainActivity : ComponentActivity() {
                             chatsListViewModel = chatsListViewModel,
                             characterDetailViewModel = characterDetailViewModel,
                             profileViewModel = profileViewModel,
+                            worldInfoViewModel = worldInfoViewModel,
                             creatorsViewModel = creatorsViewModel,
                             creatorCharactersViewModel = creatorCharactersViewModel,
                             creatorAssistantListViewModel = creatorAssistantListViewModel,
                             creatorAssistantChatViewModel = creatorAssistantChatViewModel,
+                            createRoleViewModel = createRoleViewModel,
                             notificationsViewModel = notificationsViewModel,
                             socialViewModel = socialViewModel,
                             shopViewModel = shopViewModel,
                             walletViewModel = walletViewModel,
+                            modelPresetsViewModel = modelPresetsViewModel,
                             complianceState = complianceState,
+                            commentsViewModel = commentsViewModel,
                             onLogout = authViewModel::onLogout,
                             incomingShareCode = incomingShareCode,
                             onShareCodeConsumed = { pendingShareCode.value = null },
@@ -188,14 +209,18 @@ private fun AuthenticatedContent(
     chatsListViewModel: ChatsListViewModel,
     characterDetailViewModel: CharacterDetailViewModel,
     profileViewModel: ProfileViewModel,
+    worldInfoViewModel: WorldInfoViewModel,
     creatorsViewModel: CreatorsViewModel,
     creatorCharactersViewModel: CreatorCharactersViewModel,
     creatorAssistantListViewModel: CreatorAssistantListViewModel,
     creatorAssistantChatViewModel: CreatorAssistantChatViewModel,
+    createRoleViewModel: CreateRoleViewModel,
     notificationsViewModel: NotificationsViewModel,
     socialViewModel: SocialViewModel,
     shopViewModel: ShopViewModel,
     walletViewModel: WalletViewModel,
+    modelPresetsViewModel: ModelPresetsViewModel,
+    commentsViewModel: CommentsViewModel,
     complianceState: com.stproject.client.android.features.settings.ComplianceUiState,
     onLogout: () -> Unit,
     incomingShareCode: String?,
@@ -225,6 +250,8 @@ private fun AuthenticatedContent(
     fun chatShareRoute(shareCode: String): String = "$CHAT_SHARE_ROUTE?shareCode=${Uri.encode(shareCode)}"
 
     fun creatorAssistantChatRoute(sessionId: String): String = "creators/assistant/${sessionId.trim()}"
+
+    fun commentsRoute(characterId: String): String = "$COMMENTS_ROUTE/${characterId.trim()}"
 
     LaunchedEffect(contentGate.nsfwAllowed, contentAllowed) {
         exploreViewModel.setNsfwAllowed(contentGate.nsfwAllowed)
@@ -331,6 +358,9 @@ private fun AuthenticatedContent(
                                     onSuccess = { navController.navigate(CHAT_SESSION_ROUTE) },
                                 )
                             },
+                            onOpenComments = { id ->
+                                navController.navigate(commentsRoute(id))
+                            },
                             contentGate = contentGate,
                         )
                     }
@@ -352,6 +382,10 @@ private fun AuthenticatedContent(
                             viewModel = chatViewModel,
                             moderationViewModel = moderationViewModel,
                             onBackToList = { navController.popBackStack() },
+                            contentGate = contentGate,
+                            onOpenWallet = { navigateTo(MainTab.Wallet) },
+                            onOpenSettings = { navigateTo(MainTab.Settings) },
+                            onOpenShop = { navigateTo(MainTab.Shop) },
                         )
                     }
                     composable(
@@ -375,7 +409,10 @@ private fun AuthenticatedContent(
                         )
                     }
                     composable(MainTab.Profile.route) {
-                        ProfileScreen(viewModel = profileViewModel)
+                        ProfileScreen(
+                            viewModel = profileViewModel,
+                            onOpenWorldInfo = { navController.navigate(WORLDINFO_ROUTE) },
+                        )
                     }
                     composable(MainTab.Shop.route) {
                         ShopScreen(viewModel = shopViewModel)
@@ -386,12 +423,15 @@ private fun AuthenticatedContent(
                     composable(MainTab.Creators.route) {
                         CreatorsScreen(
                             viewModel = creatorsViewModel,
+                            moderationViewModel = moderationViewModel,
                             onOpenCreator = { creatorId ->
                                 navController.navigate(creatorDetailRoute(creatorId))
                             },
                             onOpenAssistant = {
                                 navController.navigate(CREATOR_ASSISTANT_LIST_ROUTE)
                             },
+                            onOpenCreateRole = { navController.navigate(CREATE_ROLE_ROUTE) },
+                            contentGate = contentGate,
                         )
                     }
                     composable(
@@ -427,6 +467,13 @@ private fun AuthenticatedContent(
                             },
                         )
                     }
+                    composable(CREATE_ROLE_ROUTE) {
+                        CreateRoleScreen(
+                            viewModel = createRoleViewModel,
+                            allowNsfw = contentGate.nsfwAllowed,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                     composable(
                         route = CREATOR_ASSISTANT_CHAT_ROUTE_PATTERN,
                         arguments =
@@ -445,7 +492,11 @@ private fun AuthenticatedContent(
                         NotificationsScreen(viewModel = notificationsViewModel)
                     }
                     composable(MainTab.Social.route) {
-                        SocialScreen(viewModel = socialViewModel)
+                        SocialScreen(
+                            viewModel = socialViewModel,
+                            moderationViewModel = moderationViewModel,
+                            contentGate = contentGate,
+                        )
                     }
                     composable(MainTab.Settings.route) {
                         SettingsScreen(
@@ -456,6 +507,35 @@ private fun AuthenticatedContent(
                             onAllowNsfwChanged = complianceViewModel::setAllowNsfw,
                             onThemeModeChanged = complianceViewModel::setThemeMode,
                             onLanguageTagChanged = complianceViewModel::setLanguageTag,
+                            onOpenModelPresets = { navController.navigate(MODEL_PRESETS_ROUTE) },
+                        )
+                    }
+                    composable(MODEL_PRESETS_ROUTE) {
+                        ModelPresetsScreen(
+                            viewModel = modelPresetsViewModel,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable(WORLDINFO_ROUTE) {
+                        WorldInfoScreen(
+                            viewModel = worldInfoViewModel,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable(
+                        route = COMMENTS_ROUTE_PATTERN,
+                        arguments =
+                            listOf(
+                                navArgument("characterId") { type = NavType.StringType },
+                            ),
+                    ) { entry ->
+                        val characterId = entry.arguments?.getString("characterId").orEmpty()
+                        CommentsScreen(
+                            characterId = characterId,
+                            viewModel = commentsViewModel,
+                            moderationViewModel = moderationViewModel,
+                            contentGate = contentGate,
+                            onBack = { navController.popBackStack() },
                         )
                     }
                 }

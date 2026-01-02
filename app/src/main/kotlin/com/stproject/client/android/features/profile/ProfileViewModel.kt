@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
-import com.stproject.client.android.core.compliance.ContentBlockReason
+import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.UserRepository
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
@@ -32,7 +32,7 @@ class ProfileViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = accessErrorMessage(access)) }
+                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
                         return@launch
                     }
                     val profile = userRepository.getMe()
@@ -43,15 +43,6 @@ class ProfileViewModel
                     e.rethrowIfCancellation()
                     _uiState.update { it.copy(isLoading = false, error = "unexpected error") }
                 }
-            }
-        }
-
-        private fun accessErrorMessage(access: ContentAccessDecision.Blocked): String {
-            return when (access.reason) {
-                ContentBlockReason.NSFW_DISABLED -> "mature content disabled"
-                ContentBlockReason.AGE_REQUIRED -> "age verification required"
-                ContentBlockReason.CONSENT_REQUIRED -> "terms acceptance required"
-                ContentBlockReason.CONSENT_PENDING -> "compliance not loaded"
             }
         }
     }

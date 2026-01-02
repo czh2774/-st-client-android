@@ -18,6 +18,10 @@ interface UserPreferencesStore {
     fun getLanguageTag(): String?
 
     fun setLanguageTag(tag: String?)
+
+    fun getModelPresetId(): String?
+
+    fun setModelPresetId(presetId: String?)
 }
 
 @Singleton
@@ -55,9 +59,27 @@ class SharedPreferencesUserPreferencesStore
             }.apply()
         }
 
+        override fun getModelPresetId(): String? =
+            prefs.getString(
+                KEY_MODEL_PRESET_ID,
+                null,
+            )?.trim()?.takeIf { it.isNotEmpty() }
+
+        override fun setModelPresetId(presetId: String?) {
+            val value = presetId?.trim()?.takeIf { it.isNotEmpty() }
+            prefs.edit().apply {
+                if (value == null) {
+                    remove(KEY_MODEL_PRESET_ID)
+                } else {
+                    putString(KEY_MODEL_PRESET_ID, value)
+                }
+            }.apply()
+        }
+
         private companion object {
             private const val KEY_NSFW_ALLOWED = "pref.nsfw_allowed"
             private const val KEY_THEME_MODE = "pref.theme_mode"
             private const val KEY_LANGUAGE_TAG = "pref.language_tag"
+            private const val KEY_MODEL_PRESET_ID = "pref.model_preset_id"
         }
     }

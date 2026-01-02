@@ -25,8 +25,23 @@ data class ChatSessionItemDto(
     val updatedAt: String? = null,
 )
 
+data class ChatSessionDetailDto(
+    val sessionId: String,
+    val metadata: Map<String, Any>? = null,
+    val updatedAt: String? = null,
+)
+
 data class ChatSessionsResponseDto(
     val items: List<ChatSessionItemDto>? = null,
     val total: Int? = null,
     val hasMore: Boolean? = null,
+)
+
+data class UpdateChatSessionRequestDto(
+    val title: String? = null,
+    val metadata: ChatSessionMetadataPatchDto? = null,
+)
+
+data class ChatSessionMetadataPatchDto(
+    val xbVars: Map<String, Any>? = null,
 )

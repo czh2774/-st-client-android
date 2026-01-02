@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
-import com.stproject.client.android.core.compliance.ContentBlockReason
+import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.model.ChatSessionSummary
 import com.stproject.client.android.domain.repository.CharacterRepository
@@ -35,7 +35,7 @@ class ChatsListViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = accessErrorMessage(access)) }
+                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
                         return@launch
                     }
                     val items = chatRepository.listSessions(limit = 20, offset = 0)
@@ -45,7 +45,22 @@ class ChatsListViewModel
                         } else {
                             resolveNsfw(items)
                         }
-                    _uiState.update { it.copy(isLoading = false, items = resolved) }
+                    val lastSession = chatRepository.getLastSessionSummary()
+                    val resolvedLast =
+                        if (lastSession == null) {
+                            null
+                        } else if (allowNsfw) {
+                            lastSession
+                        } else {
+                            resolveNsfw(listOf(lastSession)).firstOrNull()
+                        }
+                    val displayLast =
+                        if (resolvedLast != null && resolved.none { it.sessionId == resolvedLast.sessionId }) {
+                            resolvedLast
+                        } else {
+                            null
+                        }
+                    _uiState.update { it.copy(isLoading = false, items = resolved, lastSession = displayLast) }
                 } catch (e: ApiException) {
                     _uiState.update { it.copy(isLoading = false, error = e.userMessage ?: e.message) }
                 } catch (e: Exception) {
@@ -64,15 +79,6 @@ class ChatsListViewModel
                         characterRepository.getCharacterDetail(memberId).isNsfw
                     }.getOrNull()
                 item.copy(primaryMemberIsNsfw = isNsfw)
-            }
-        }
-
-        private fun accessErrorMessage(access: ContentAccessDecision.Blocked): String {
-            return when (access.reason) {
-                ContentBlockReason.NSFW_DISABLED -> "mature content disabled"
-                ContentBlockReason.AGE_REQUIRED -> "age verification required"
-                ContentBlockReason.CONSENT_REQUIRED -> "terms acceptance required"
-                ContentBlockReason.CONSENT_PENDING -> "compliance not loaded"
             }
         }
     }

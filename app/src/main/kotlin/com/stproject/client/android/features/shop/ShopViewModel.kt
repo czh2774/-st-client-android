@@ -11,7 +11,7 @@ import com.stproject.client.android.core.billing.BillingManager
 import com.stproject.client.android.core.billing.BillingProductQuery
 import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
-import com.stproject.client.android.core.compliance.ContentBlockReason
+import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.model.IapProduct
 import com.stproject.client.android.domain.repository.IapRepository
@@ -57,7 +57,7 @@ class ShopViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = accessErrorMessage(access)) }
+                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
                         return@launch
                     }
                     val catalog = iapRepository.getCatalog()
@@ -118,7 +118,7 @@ class ShopViewModel
             viewModelScope.launch {
                 val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                 if (access is ContentAccessDecision.Blocked) {
-                    _uiState.update { it.copy(error = accessErrorMessage(access)) }
+                    _uiState.update { it.copy(error = access.userMessage()) }
                     return@launch
                 }
                 val result = billingManager.launchPurchase(activity, details)
@@ -135,7 +135,7 @@ class ShopViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isRestoring = false, error = accessErrorMessage(access)) }
+                        _uiState.update { it.copy(isRestoring = false, error = access.userMessage()) }
                         return@launch
                     }
                     val ready = billingManager.connect()
@@ -209,7 +209,7 @@ class ShopViewModel
             if (purchases.isEmpty()) return
             val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
             if (access is ContentAccessDecision.Blocked) {
-                _uiState.update { it.copy(error = accessErrorMessage(access)) }
+                _uiState.update { it.copy(error = access.userMessage()) }
                 return
             }
             val environment = catalogEnvironment ?: "Production"
@@ -219,10 +219,12 @@ class ShopViewModel
                 if (token.isEmpty()) continue
                 val products = purchase.products
                 if (products.isEmpty()) continue
+                var verified = true
                 try {
                     for (productId in products) {
                         val product = catalogProducts[productId] ?: continue
-                        iapRepository.submitTransaction(
+                        val result =
+                            iapRepository.submitTransaction(
                             IapTransactionRequest(
                                 platform = "android",
                                 kind = product.kind,
@@ -239,7 +241,15 @@ class ShopViewModel
                                 idempotencyKey = "android:$token",
                                 clientTimeMs = System.currentTimeMillis(),
                             ),
-                        )
+                            )
+                        if (result.ok != true) {
+                            verified = false
+                            val status = result.status?.trim().takeIf { it?.isNotEmpty() == true }
+                            _uiState.update {
+                                it.copy(error = status ?: "purchase verification failed")
+                            }
+                            break
+                        }
                     }
                 } catch (e: ApiException) {
                     _uiState.update { it.copy(error = e.userMessage ?: e.message) }
@@ -250,7 +260,7 @@ class ShopViewModel
                     continue
                 }
 
-                if (!purchase.isAcknowledged) {
+                if (verified && !purchase.isAcknowledged) {
                     finalizePurchase(purchase)
                 }
             }
@@ -309,14 +319,5 @@ class ShopViewModel
                 price = price,
                 enabled = enabled,
             )
-        }
-
-        private fun accessErrorMessage(access: ContentAccessDecision.Blocked): String {
-            return when (access.reason) {
-                ContentBlockReason.NSFW_DISABLED -> "mature content disabled"
-                ContentBlockReason.AGE_REQUIRED -> "age verification required"
-                ContentBlockReason.CONSENT_REQUIRED -> "terms acceptance required"
-                ContentBlockReason.CONSENT_PENDING -> "compliance not loaded"
-            }
         }
     }

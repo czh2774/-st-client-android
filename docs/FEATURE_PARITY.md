@@ -13,9 +13,9 @@ plus direct chat endpoints in `HttpChatRepository`.
 | Stream completion | `/app-shell/chat` | DONE | `POST chats/{sessionId}/completion` (SSE), `POST chats` |
 | Regenerate / continue | `/app-shell/chat` | DONE | `POST dialogs/regenerate`, `POST dialogs/continue` |
 | Swipe actions | `/app-shell/chat` | DONE | `POST dialogs/swipe`, `POST dialogs/swipe/delete` |
-| Delete message | `/app-shell/chat` | PARTIAL (last assistant only) | `POST dialogs/delete` |
+| Delete message | `/app-shell/chat` | DONE | `POST dialogs/delete` |
 | Chat share page | `/chat-share` | DONE | `GET characters/{id}/share-code`, `GET characters/share-code` |
-| World info | `/app-shell/worldinfo` | MISSING | TBD |
+| World info | `/app-shell/worldinfo` | DONE (basic CRUD) | `GET/POST/PUT/DELETE worldinfo` |
 
 Deep link / share-code entry:
 `stproject://share/c/{code}` or `...?shareCode={code}`.
@@ -36,7 +36,7 @@ Deep link / share-code entry:
 | Creator assistant list/chat | `/creator-assistant` | DONE (basic) | `POST creator-assistant/start`, `GET creator-assistant/sessions`, `POST creator-assistant/chat` |
 | Assistant draft/publish | `/creator-assistant` | DONE (basic) | `POST creator-assistant/generate-draft`, `POST creator-assistant/update-draft`, `POST creator-assistant/publish` |
 | Creator badges | `/app-shell/creator/$creatorId/badges` | MISSING | TBD |
-| Create / role form | `/create/form` | MISSING | TBD |
+| Create / role form | `/create/form` | PARTIAL (create/edit + import/export + parse-text/file + PNG export) | `POST/PUT cards`, `GET characters/{id}/export`, `GET characters/{id}/export-png`, `POST cards/parse-text`, `POST cards/parse-file`, `GET cards/template` |
 
 ## Social / Notifications / Profile
 | Feature | React route | Android status | Android API |
@@ -61,10 +61,14 @@ Deep link / share-code entry:
 | Terms acceptance | `/settings` | DONE | `POST users/accept-tos` |
 | Age verification / user config | `/settings` | DONE | `GET users/config`, `PUT users/config` |
 | Theme / language | `/theme_select`, `/language_select` | PARTIAL (local only) | no API |
-| Backgrounds / decorations / model presets | `/settings/*` | MISSING | TBD |
+| Backgrounds / decorations / model presets | `/settings/*` | PARTIAL (model presets selection only) | `GET presets` |
+
+## Comments
+| Feature | React route | Android status | Android API |
+| --- | --- | --- | --- |
+| Comment list + create + like + delete + replies | `/app-shell/explore` (comments sheet) | DONE (basic) | `GET comments`, `POST comments`, `POST comments/{id}/like`, `DELETE comments/{id}` |
 
 ## React-Only Features (Missing on Android)
-- Comments
 - Personas
 - Masks
 - Extensions

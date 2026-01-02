@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.stproject.client.android.core.preferences.UserPreferencesStore
 import com.stproject.client.android.core.session.SharedPreferencesChatSessionStore
 import com.stproject.client.android.data.local.ChatDatabase
 import com.stproject.client.android.data.local.ChatMessageEntity
@@ -65,6 +66,7 @@ class ChatRepositoryClearTest {
                     messageDao = dao,
                     sessionDao = sessionDao,
                     sessionStore = store,
+                    userPreferencesStore = mockk<UserPreferencesStore>(relaxed = true),
                 )
 
             repo.clearLocalSession()

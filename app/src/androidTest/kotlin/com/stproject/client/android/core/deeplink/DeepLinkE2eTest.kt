@@ -2,41 +2,50 @@ package com.stproject.client.android.core.deeplink
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.runtime.MutableState
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.runtime.MutableState
 import androidx.lifecycle.ViewModelProvider
 import com.stproject.client.android.MainActivity
+import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.auth.AuthService
 import com.stproject.client.android.core.auth.AuthTokenStore
 import com.stproject.client.android.core.auth.AuthTokens
-import com.stproject.client.android.core.deeplink.ShareCodeParser
 import com.stproject.client.android.core.di.AuthModule
 import com.stproject.client.android.data.di.RepositoryModule
+import com.stproject.client.android.domain.model.A2UIAction
+import com.stproject.client.android.domain.model.A2UIActionResult
+import com.stproject.client.android.domain.model.CardCreateInput
+import com.stproject.client.android.domain.model.CardCreateResult
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
 import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatSessionSummary
+import com.stproject.client.android.domain.model.Comment
+import com.stproject.client.android.domain.model.CommentLikeResult
+import com.stproject.client.android.domain.model.CommentListResult
+import com.stproject.client.android.domain.model.CommentSort
+import com.stproject.client.android.domain.model.CommentUser
 import com.stproject.client.android.domain.model.CreatorAssistantChatResult
+import com.stproject.client.android.domain.model.CreatorAssistantDraft
 import com.stproject.client.android.domain.model.CreatorAssistantDraftResult
 import com.stproject.client.android.domain.model.CreatorAssistantPublishResult
 import com.stproject.client.android.domain.model.CreatorAssistantSessionHistory
-import com.stproject.client.android.domain.model.CreatorAssistantSessionSummary
-import com.stproject.client.android.domain.model.CreatorCharacter
-import com.stproject.client.android.domain.model.CreatorSummary
-import com.stproject.client.android.domain.model.IapProduct
-import com.stproject.client.android.domain.model.NotificationItem
+import com.stproject.client.android.domain.model.ReportReasonMeta
 import com.stproject.client.android.domain.model.ShareCodeInfo
 import com.stproject.client.android.domain.model.UserConfig
 import com.stproject.client.android.domain.model.UserConfigUpdate
 import com.stproject.client.android.domain.model.UserProfile
 import com.stproject.client.android.domain.model.WalletBalance
-import com.stproject.client.android.domain.model.WalletTransaction
+import com.stproject.client.android.domain.model.WorldInfoEntry
+import com.stproject.client.android.domain.model.WorldInfoEntryInput
+import com.stproject.client.android.domain.repository.CardRepository
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.ChatRepository
+import com.stproject.client.android.domain.repository.CommentRepository
 import com.stproject.client.android.domain.repository.CreatorAssistantRepository
 import com.stproject.client.android.domain.repository.CreatorAssistantSessionsResult
 import com.stproject.client.android.domain.repository.CreatorAssistantStartResult
@@ -51,6 +60,7 @@ import com.stproject.client.android.domain.repository.IapTransactionRequest
 import com.stproject.client.android.domain.repository.IapTransactionResult
 import com.stproject.client.android.domain.repository.NotificationListResult
 import com.stproject.client.android.domain.repository.NotificationRepository
+import com.stproject.client.android.domain.repository.PresetRepository
 import com.stproject.client.android.domain.repository.ReportRepository
 import com.stproject.client.android.domain.repository.SocialListResult
 import com.stproject.client.android.domain.repository.SocialRepository
@@ -58,19 +68,22 @@ import com.stproject.client.android.domain.repository.UnreadCounts
 import com.stproject.client.android.domain.repository.UserRepository
 import com.stproject.client.android.domain.repository.WalletRepository
 import com.stproject.client.android.domain.repository.WalletTransactionsResult
-import com.stproject.client.android.domain.model.ReportReasonMeta
+import com.stproject.client.android.domain.repository.WorldInfoRepository
 import com.stproject.client.android.features.auth.AuthViewModel
 import com.stproject.client.android.features.settings.ComplianceViewModel
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.UninstallModules
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import kotlinx.coroutines.CompletableDeferred
+
 @HiltAndroidTest
 @UninstallModules(RepositoryModule::class, AuthModule::class)
 class DeepLinkE2eTest {
@@ -104,6 +117,10 @@ class DeepLinkE2eTest {
 
     @BindValue
     @JvmField
+    val commentRepository: CommentRepository = FakeCommentRepository()
+
+    @BindValue
+    @JvmField
     val characterRepository: CharacterRepository = FakeCharacterRepository()
 
     @BindValue
@@ -130,6 +147,18 @@ class DeepLinkE2eTest {
     @JvmField
     val walletRepository: WalletRepository = FakeWalletRepository()
 
+    @BindValue
+    @JvmField
+    val cardRepository: CardRepository = FakeCardRepository()
+
+    @BindValue
+    @JvmField
+    val worldInfoRepository: WorldInfoRepository = FakeWorldInfoRepository()
+
+    @BindValue
+    @JvmField
+    val presetRepository: PresetRepository = FakePresetRepository()
+
     @Before
     fun setUp() {
         hiltRule.inject()
@@ -146,6 +175,8 @@ class DeepLinkE2eTest {
         val authViewModel = ViewModelProvider(composeRule.activity).get(AuthViewModel::class.java)
         val complianceViewModel = ViewModelProvider(composeRule.activity).get(ComplianceViewModel::class.java)
         val fakeChatRepository = chatRepository as FakeChatRepository
+        val fakeCharacterRepository = characterRepository as FakeCharacterRepository
+        fakeCharacterRepository.nsfwIds = emptySet()
         fakeChatRepository.holdStartSession()
 
         composeRule.waitUntil(timeoutMillis = 10_000) {
@@ -175,9 +206,44 @@ class DeepLinkE2eTest {
         }
         composeRule.onNodeWithTag("chat.send").assertIsDisplayed()
     }
+
+    @Test
+    fun deepLinkShareCodeBlocksNsfwWhenDisabled() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("stproject://share/c/code-123"))
+        val authViewModel = ViewModelProvider(composeRule.activity).get(AuthViewModel::class.java)
+        val complianceViewModel = ViewModelProvider(composeRule.activity).get(ComplianceViewModel::class.java)
+        val fakeChatRepository = chatRepository as FakeChatRepository
+        val fakeCharacterRepository = characterRepository as FakeCharacterRepository
+        fakeCharacterRepository.nsfwIds = setOf("char-1")
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            authViewModel.uiState.value.isAuthenticated
+        }
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            val state = complianceViewModel.uiState.value
+            state.consentLoaded && !state.consentRequired && state.ageVerified
+        }
+
+        composeRule.activityRule.scenario.onActivity { activity ->
+            deliverDeepLink(activity, intent)
+        }
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithTag("chat.share.error").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("chat.share.error").assertIsDisplayed()
+        composeRule.runOnIdle {
+            if (fakeChatRepository.lastStartMemberId != null) {
+                throw AssertionError("Expected deep link to be blocked for NSFW content.")
+            }
+        }
+    }
 }
 
-private fun deliverDeepLink(activity: MainActivity, intent: Intent) {
+private fun deliverDeepLink(
+    activity: MainActivity,
+    intent: Intent,
+) {
     val shareCode = ShareCodeParser.extractShareCode(intent) ?: return
     val field = activity.javaClass.getDeclaredField("pendingShareCode")
     field.isAccessible = true
@@ -188,11 +254,12 @@ private fun deliverDeepLink(activity: MainActivity, intent: Intent) {
 
 private class FakeAuthTokenStore : AuthTokenStore {
     @Volatile
-    private var tokens: AuthTokens? = AuthTokens(
-        accessToken = "test-access",
-        refreshToken = "test-refresh",
-        expiresAtEpochSeconds = (System.currentTimeMillis() / 1000) + 3600,
-    )
+    private var tokens: AuthTokens? =
+        AuthTokens(
+            accessToken = "test-access",
+            refreshToken = "test-refresh",
+            expiresAtEpochSeconds = (System.currentTimeMillis() / 1000) + 3600,
+        )
 
     override fun getAccessToken(): String? = tokens?.accessToken
 
@@ -230,11 +297,12 @@ private class FakeAuthService(
     ): AuthTokens {
         val tokens = tokenStore.getTokens()
         if (tokens != null) return tokens
-        val refreshed = AuthTokens(
-            accessToken = "test-access",
-            refreshToken = "test-refresh",
-            expiresAtEpochSeconds = (System.currentTimeMillis() / 1000) + 3600,
-        )
+        val refreshed =
+            AuthTokens(
+                accessToken = "test-access",
+                refreshToken = "test-refresh",
+                expiresAtEpochSeconds = (System.currentTimeMillis() / 1000) + 3600,
+            )
         tokenStore.updateTokens(refreshed.accessToken, refreshed.refreshToken, 3600)
         return refreshed
     }
@@ -245,6 +313,7 @@ private class FakeAuthService(
         tokenStore.clear()
     }
 }
+
 private class FakeUserRepository : UserRepository {
     private var config =
         UserConfig(
@@ -283,6 +352,8 @@ private class FakeUserRepository : UserRepository {
 }
 
 private class FakeCharacterRepository : CharacterRepository {
+    var nsfwIds: Set<String> = emptySet()
+
     override suspend fun queryCharacters(
         cursor: String?,
         limit: Int?,
@@ -291,13 +362,14 @@ private class FakeCharacterRepository : CharacterRepository {
     ): List<CharacterSummary> = emptyList()
 
     override suspend fun getCharacterDetail(characterId: String): CharacterDetail {
+        val isNsfw = nsfwIds.contains(characterId)
         return CharacterDetail(
             id = characterId,
             name = "Test",
             description = "",
             tags = emptyList(),
             creatorName = null,
-            isNsfw = false,
+            isNsfw = isNsfw,
             totalFollowers = 0,
             isFollowed = false,
         )
@@ -323,8 +395,10 @@ private class FakeCharacterRepository : CharacterRepository {
 }
 
 private class FakeChatRepository : ChatRepository {
-    private val _messages = kotlinx.coroutines.flow.MutableStateFlow<List<ChatMessage>>(emptyList())
-    override val messages: kotlinx.coroutines.flow.Flow<List<ChatMessage>> = _messages
+    private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    override val messages: Flow<List<ChatMessage>> = _messages
+    override val a2uiState: Flow<A2UIRuntimeState?> =
+        MutableStateFlow(null)
 
     @Volatile
     private var startSessionGate: CompletableDeferred<Unit>? = null
@@ -338,6 +412,10 @@ private class FakeChatRepository : ChatRepository {
         private set
 
     override suspend fun sendUserMessage(content: String) = Unit
+
+    override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
+        return A2UIActionResult(accepted = false, reason = "not_supported")
+    }
 
     override suspend fun startNewSession(
         memberId: String,
@@ -358,6 +436,8 @@ private class FakeChatRepository : ChatRepository {
         offset: Int,
     ): List<ChatSessionSummary> = emptyList()
 
+    override suspend fun getLastSessionSummary(): ChatSessionSummary? = null
+
     override suspend fun regenerateMessage(messageId: String) = Unit
 
     override suspend fun continueMessage(messageId: String) = Unit
@@ -377,6 +457,10 @@ private class FakeChatRepository : ChatRepository {
         swipeId: Int?,
     ) = Unit
 
+    override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+
+    override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
+
     override suspend fun clearLocalSession() = Unit
 
     fun holdStartSession() {
@@ -395,11 +479,51 @@ private class FakeReportRepository : ReportRepository {
     }
 
     override suspend fun submitReport(
+        targetType: String,
         targetId: String,
         reasons: List<String>,
         detail: String?,
         sessionId: String?,
     ) = Unit
+}
+
+private class FakeCommentRepository : CommentRepository {
+    override suspend fun listComments(
+        characterId: String,
+        sort: CommentSort,
+        pageNum: Int,
+        pageSize: Int,
+    ): CommentListResult {
+        return CommentListResult(items = emptyList(), total = 0, hasMore = false)
+    }
+
+    override suspend fun createComment(
+        characterId: String,
+        content: String,
+        parentId: String?,
+    ): Comment {
+        return Comment(
+            id = "comment-1",
+            characterId = characterId,
+            userId = "user-1",
+            content = content,
+            likesCount = 0,
+            isLiked = false,
+            createdAt = "2025-01-01T00:00:00Z",
+            parentId = parentId,
+            user = CommentUser(id = "user-1", username = "User", avatarUrl = null),
+            replies = emptyList(),
+        )
+    }
+
+    override suspend fun deleteComment(commentId: String) = Unit
+
+    override suspend fun likeComment(
+        commentId: String,
+        value: Boolean,
+    ): CommentLikeResult {
+        return CommentLikeResult(likesCount = 0, isLiked = value)
+    }
 }
 
 private class FakeCreatorRepository : CreatorRepository {
@@ -435,7 +559,12 @@ private class FakeCreatorAssistantRepository : CreatorAssistantRepository {
         parentCharacterId: String?,
         initialPrompt: String?,
     ): CreatorAssistantStartResult {
-        return CreatorAssistantStartResult(sessionId = "session-1", characterType = null, greeting = null, suggestions = emptyList())
+        return CreatorAssistantStartResult(
+            sessionId = "session-1",
+            characterType = null,
+            greeting = null,
+            suggestions = emptyList(),
+        )
     }
 
     override suspend fun getSessionHistory(sessionId: String): CreatorAssistantSessionHistory {
@@ -501,8 +630,8 @@ private class FakeCreatorAssistantRepository : CreatorAssistantRepository {
     override suspend fun abandon(sessionId: String): Boolean = true
 }
 
-private fun emptyDraft(): com.stproject.client.android.domain.model.CreatorAssistantDraft {
-    return com.stproject.client.android.domain.model.CreatorAssistantDraft(
+private fun emptyDraft(): CreatorAssistantDraft {
+    return CreatorAssistantDraft(
         name = null,
         description = null,
         greeting = null,
@@ -598,6 +727,106 @@ private class FakeWalletRepository : WalletRepository {
         pageNum: Int,
         pageSize: Int,
     ): WalletTransactionsResult {
-        return WalletTransactionsResult(items = emptyList(), total = 0, hasMore = false, pageNum = pageNum, pageSize = pageSize)
+        return WalletTransactionsResult(
+            items = emptyList(),
+            total = 0,
+            hasMore = false,
+            pageNum = pageNum,
+            pageSize = pageSize,
+        )
+    }
+}
+
+private class FakeCardRepository : CardRepository {
+    override suspend fun createCard(input: CardCreateInput): CardCreateResult {
+        return CardCreateResult(
+            characterId = "char-1",
+            name = input.name,
+        )
+    }
+
+    override suspend fun createCardFromWrapper(wrapper: Map<String, Any>): CardCreateResult {
+        return CardCreateResult(
+            characterId = "char-1",
+            name = null,
+        )
+    }
+
+    override suspend fun updateCardFromWrapper(
+        id: String,
+        wrapper: Map<String, Any>,
+    ): CardCreateResult {
+        return CardCreateResult(
+            characterId = id,
+            name = null,
+        )
+    }
+
+    override suspend fun fetchCardWrapper(id: String): Map<String, Any> {
+        return emptyMap()
+    }
+
+    override suspend fun fetchExportPng(id: String): ByteArray {
+        return ByteArray(0)
+    }
+
+    override suspend fun parseCardFile(
+        fileName: String,
+        bytes: ByteArray,
+    ): Map<String, Any> {
+        return emptyMap()
+    }
+
+    override suspend fun parseCardText(
+        content: String,
+        fileName: String?,
+    ): Map<String, Any> {
+        return emptyMap()
+    }
+
+    override suspend fun fetchTemplate(): Map<String, Any> {
+        return emptyMap()
+    }
+}
+
+private class FakeWorldInfoRepository : WorldInfoRepository {
+    override suspend fun listEntries(
+        characterId: String?,
+        includeGlobal: Boolean,
+    ): List<WorldInfoEntry> = emptyList()
+
+    override suspend fun createEntry(input: WorldInfoEntryInput): WorldInfoEntry {
+        return WorldInfoEntry(
+            id = "wi-1",
+            characterId = input.characterId,
+            keys = input.keys,
+            secondaryKeys = emptyList(),
+            content = input.content,
+            comment = input.comment,
+            enabled = input.enabled,
+        )
+    }
+
+    override suspend fun updateEntry(
+        id: String,
+        input: WorldInfoEntryInput,
+    ): WorldInfoEntry {
+        return WorldInfoEntry(
+            id = id,
+            characterId = input.characterId,
+            keys = input.keys,
+            secondaryKeys = emptyList(),
+            content = input.content,
+            comment = input.comment,
+            enabled = input.enabled,
+        )
+    }
+
+    override suspend fun deleteEntry(id: String): Boolean = true
+}
+
+private class FakePresetRepository : PresetRepository {
+    override suspend fun listPresets(seriesId: String?): List<com.stproject.client.android.domain.model.ModelPreset> {
+        return emptyList()
     }
 }

@@ -40,6 +40,7 @@ fun CharacterDetailScreen(
     moderationViewModel: ModerationViewModel,
     onBack: () -> Unit,
     onStartChat: (String, String?) -> Unit,
+    onOpenComments: (String) -> Unit,
     contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -177,6 +178,12 @@ fun CharacterDetailScreen(
                             },
                         ),
                     )
+                }
+                Button(
+                    onClick = { onOpenComments(characterId) },
+                    enabled = detail != null && !uiState.isLoading && !accessRestricted,
+                ) {
+                    Text(stringResource(R.string.common_comments))
                 }
                 Button(
                     onClick = { viewModel.generateShareCode(characterId) },

@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
-import com.stproject.client.android.core.compliance.ContentBlockReason
+import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.model.CreatorAssistantMessage
 import com.stproject.client.android.domain.repository.CreatorAssistantRepository
@@ -43,10 +43,10 @@ class CreatorAssistantChatViewModel
             }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
-                            it.copy(isLoading = false, error = accessErrorMessage(access))
+                            it.copy(isLoading = false, error = access.userMessage())
                         }
                         return@launch
                     }
@@ -81,9 +81,9 @@ class CreatorAssistantChatViewModel
             _uiState.update { it.copy(isSending = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isSending = false, error = accessErrorMessage(access)) }
+                        _uiState.update { it.copy(isSending = false, error = access.userMessage()) }
                         return@launch
                     }
                     val userMessage =
@@ -126,9 +126,9 @@ class CreatorAssistantChatViewModel
             _uiState.update { it.copy(isDrafting = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isDrafting = false, error = accessErrorMessage(access)) }
+                        _uiState.update { it.copy(isDrafting = false, error = access.userMessage()) }
                         return@launch
                     }
                     val result = repository.generateDraft(sessionId)
@@ -161,9 +161,9 @@ class CreatorAssistantChatViewModel
             _uiState.update { it.copy(isPublishing = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isPublishing = false, error = accessErrorMessage(access)) }
+                        _uiState.update { it.copy(isPublishing = false, error = access.userMessage()) }
                         return@launch
                     }
                     val result = repository.publish(sessionId, draftId, isPublic = true)
@@ -174,15 +174,6 @@ class CreatorAssistantChatViewModel
                     e.rethrowIfCancellation()
                     _uiState.update { it.copy(isPublishing = false, error = "unexpected error") }
                 }
-            }
-        }
-
-        private fun accessErrorMessage(access: ContentAccessDecision.Blocked): String {
-            return when (access.reason) {
-                ContentBlockReason.NSFW_DISABLED -> "mature content disabled"
-                ContentBlockReason.AGE_REQUIRED -> "age verification required"
-                ContentBlockReason.CONSENT_REQUIRED -> "terms acceptance required"
-                ContentBlockReason.CONSENT_PENDING -> "compliance not loaded"
             }
         }
     }

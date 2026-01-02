@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -21,7 +22,10 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel) {
+fun ProfileScreen(
+    viewModel: ProfileViewModel,
+    onOpenWorldInfo: () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -65,6 +69,9 @@ fun ProfileScreen(viewModel: ProfileViewModel) {
                 if (!profile.tosAcceptedAt.isNullOrBlank()) {
                     Text(text = stringResource(R.string.profile_tos_accepted, profile.tosAcceptedAt))
                 }
+            }
+            Button(onClick = onOpenWorldInfo) {
+                Text(text = stringResource(R.string.profile_worldinfo))
             }
         }
     }

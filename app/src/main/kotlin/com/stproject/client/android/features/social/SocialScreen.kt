@@ -22,15 +22,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.features.chat.ModerationViewModel
+import com.stproject.client.android.features.chat.ReportDialog
 import com.stproject.client.android.domain.model.SocialUserSummary
 
 @Composable
-fun SocialScreen(viewModel: SocialViewModel) {
+fun SocialScreen(
+    viewModel: SocialViewModel,
+    moderationViewModel: ModerationViewModel,
+    contentGate: ContentGate,
+) {
     val uiState by viewModel.uiState.collectAsState()
+    val moderationState by moderationViewModel.uiState.collectAsState()
+    var reportTargetId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.load()
@@ -48,6 +61,9 @@ fun SocialScreen(viewModel: SocialViewModel) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(text = stringResource(R.string.social_title), style = MaterialTheme.typography.titleMedium)
+                if (contentGate.nsfwAllowed) {
+                    RestrictedContentNotice(onReport = null)
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -138,12 +154,29 @@ fun SocialScreen(viewModel: SocialViewModel) {
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
+            if (moderationState.error != null) {
+                Text(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = moderationState.error ?: "",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(items = uiState.items, key = { it.id }) { item ->
-                    SocialUserRow(item = item)
+                    SocialUserRow(
+                        item = item,
+                        onReport = { userId ->
+                            reportTargetId = userId
+                            moderationViewModel.loadReasonsIfNeeded()
+                        },
+                    )
                 }
                 if (uiState.hasMore) {
                     item(key = "load-more") {
@@ -168,10 +201,30 @@ fun SocialScreen(viewModel: SocialViewModel) {
             }
         }
     }
+
+    if (reportTargetId != null) {
+        ReportDialog(
+            state = moderationState,
+            onDismiss = { reportTargetId = null },
+            onSubmit = { reasons, detail ->
+                val targetId = reportTargetId ?: return@ReportDialog
+                moderationViewModel.submitReportForUser(targetId, reasons, detail)
+            },
+        )
+    }
+
+    LaunchedEffect(moderationState.lastReportSubmitted) {
+        if (moderationState.lastReportSubmitted) {
+            reportTargetId = null
+        }
+    }
 }
 
 @Composable
-private fun SocialUserRow(item: SocialUserSummary) {
+private fun SocialUserRow(
+    item: SocialUserSummary,
+    onReport: (String) -> Unit,
+) {
     Column(
         modifier =
             Modifier
@@ -189,5 +242,13 @@ private fun SocialUserRow(item: SocialUserSummary) {
                 stringResource(R.string.social_followers_count, it)
             } ?: stringResource(R.string.social_followers_unknown)
         Text(text = followInfo, style = MaterialTheme.typography.bodySmall)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            TextButton(onClick = { onReport(item.id) }) {
+                Text(stringResource(R.string.common_report))
+            }
+        }
     }
 }
