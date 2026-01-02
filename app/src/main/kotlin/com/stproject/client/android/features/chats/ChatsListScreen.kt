@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.NsfwBlockedDialog
+import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.domain.model.ChatSessionSummary
 
 @Composable
@@ -65,13 +66,24 @@ fun ChatsListScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
+            if (contentGate.nsfwAllowed) {
+                RestrictedContentNotice(onReport = null)
+            }
             if (uiState.lastSession != null) {
                 val lastSession = uiState.lastSession
                 LastSessionCard(
                     item = lastSession,
                     onOpenSession = {
-                        if (contentGate.isRestricted(lastSession?.primaryMemberIsNsfw)) {
-                            if (contentGate.isNsfwBlocked(lastSession?.primaryMemberIsNsfw)) {
+                        if (contentGate.isRestricted(
+                                lastSession?.primaryMemberIsNsfw,
+                                lastSession?.primaryMemberAgeRating,
+                            )
+                        ) {
+                            if (contentGate.isNsfwBlocked(
+                                    lastSession?.primaryMemberIsNsfw,
+                                    lastSession?.primaryMemberAgeRating,
+                                )
+                            ) {
                                 nsfwBlockedOpen = true
                             }
                             return@LastSessionCard
@@ -90,8 +102,16 @@ fun ChatsListScreen(
                     ChatSessionRow(
                         item = item,
                         onOpenSession = {
-                            if (contentGate.isRestricted(item.primaryMemberIsNsfw)) {
-                                if (contentGate.isNsfwBlocked(item.primaryMemberIsNsfw)) {
+                            if (contentGate.isRestricted(
+                                    item.primaryMemberIsNsfw,
+                                    item.primaryMemberAgeRating,
+                                )
+                            ) {
+                                if (contentGate.isNsfwBlocked(
+                                        item.primaryMemberIsNsfw,
+                                        item.primaryMemberAgeRating,
+                                    )
+                                ) {
                                     nsfwBlockedOpen = true
                                 }
                                 return@ChatSessionRow

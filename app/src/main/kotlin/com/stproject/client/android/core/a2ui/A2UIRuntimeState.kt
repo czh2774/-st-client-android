@@ -7,12 +7,14 @@ data class A2UIComponent(
     val id: String,
     val type: String,
     val props: JsonObject,
+    val weight: Double? = null,
 )
 
 data class A2UISurfaceState(
     val surfaceId: String,
     val rootId: String? = null,
     val catalogId: String? = null,
+    val styles: JsonObject? = null,
     val components: Map<String, A2UIComponent> = emptyMap(),
     val dataModel: Map<String, Any?> = emptyMap(),
 )
@@ -58,6 +60,7 @@ object A2UIRuntimeReducer {
                     current.copy(
                         rootId = begin.root?.trim()?.takeIf { it.isNotEmpty() },
                         catalogId = begin.catalogId?.trim()?.takeIf { it.isNotEmpty() },
+                        styles = begin.styles?.takeIf { it.entrySet().isNotEmpty() },
                     )
             }
         }
@@ -93,6 +96,7 @@ object A2UIRuntimeReducer {
                     id = componentId,
                     type = type,
                     props = props,
+                    weight = definition.weight,
                 )
         }
         return existing.copy(components = nextComponents)
@@ -102,14 +106,13 @@ object A2UIRuntimeReducer {
         current: A2UISurfaceState,
         update: A2UIDataModelUpdate,
     ): A2UISurfaceState {
-        val root = current.dataModel.toMutableMap()
         val patch = entriesToMap(update.contents.orEmpty())
-        if (patch.isEmpty()) return current
         val path = update.path?.trim().orEmpty()
         if (path.isEmpty() || path == "/") {
-            root.putAll(patch)
-            return current.copy(dataModel = root)
+            return current.copy(dataModel = patch.toMutableMap())
         }
+        if (patch.isEmpty()) return current
+        val root = current.dataModel.toMutableMap()
         val target = ensurePath(root, path) ?: return current
         target.putAll(patch)
         return current.copy(dataModel = root)

@@ -43,6 +43,8 @@ class CreatorCharactersViewModel
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
                                 error = access.userMessage(),
                             )
                         }
@@ -56,7 +58,11 @@ class CreatorCharactersViewModel
                         )
                     val filtered =
                         result.items.filter { item ->
-                            resolveContentAccess.execute(item.id, item.isNsfw) is ContentAccessDecision.Allowed
+                            resolveContentAccess.execute(
+                                item.id,
+                                item.isNsfw,
+                                ageRatingHint = item.moderationAgeRating,
+                            ) is ContentAccessDecision.Allowed
                         }
                     _uiState.update {
                         it.copy(
@@ -88,6 +94,8 @@ class CreatorCharactersViewModel
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
                                 error = access.userMessage(),
                             )
                         }
@@ -101,7 +109,11 @@ class CreatorCharactersViewModel
                         )
                     val filtered =
                         result.items.filter { item ->
-                            resolveContentAccess.execute(item.id, item.isNsfw) is ContentAccessDecision.Allowed
+                            resolveContentAccess.execute(
+                                item.id,
+                                item.isNsfw,
+                                ageRatingHint = item.moderationAgeRating,
+                            ) is ContentAccessDecision.Allowed
                         }
                     _uiState.update {
                         it.copy(

@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.stproject.client.android.core.common.rethrowIfCancellation
+import com.stproject.client.android.core.flags.PlayFeatureFlags
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.model.CardCharacterType
 import com.stproject.client.android.domain.model.CardVisibility
@@ -384,6 +385,10 @@ class CreateRoleViewModel
                     base
                 }
             normalizeWrapper(wrapper)
+            if (!PlayFeatureFlags.extensionsEnabled && hasExtensions(wrapper)) {
+                _uiState.update { it.copy(error = "extensions disabled for Play builds") }
+                return null
+            }
             val name = resolveName(wrapper)
             if (name.isBlank()) {
                 _uiState.update { it.copy(error = "name is required") }
@@ -401,6 +406,13 @@ class CreateRoleViewModel
             val data = wrapper["data"] as? Map<*, *> ?: return false
             val value = data["isNsfw"]
             return value as? Boolean ?: false
+        }
+
+        private fun hasExtensions(wrapper: Map<String, Any>): Boolean {
+            val data = wrapper["data"] as? Map<*, *> ?: return false
+            if (data["extensions"] != null) return true
+            val type = parseCharacterType(asString(data["characterType"]))
+            return type == CardCharacterType.Extension
         }
 
         private fun resolveName(wrapper: Map<String, Any>): String {

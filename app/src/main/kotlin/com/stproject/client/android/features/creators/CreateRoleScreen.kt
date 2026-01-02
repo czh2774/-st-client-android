@@ -42,9 +42,13 @@ import kotlinx.coroutines.launch
 fun CreateRoleScreen(
     viewModel: CreateRoleViewModel,
     allowNsfw: Boolean,
+    allowExtensions: Boolean,
     onBack: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val extensionsBlocked =
+        !allowExtensions &&
+            (uiState.characterType == CardCharacterType.Extension || uiState.extensionsJson.isNotBlank())
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var parseText by remember { mutableStateOf("") }
@@ -321,13 +325,21 @@ fun CreateRoleScreen(
                     onValueChange = viewModel::updateAvatarUrl,
                     label = { Text(stringResource(R.string.create_role_avatar_url)) },
                 )
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = uiState.extensionsJson,
-                    onValueChange = viewModel::updateExtensionsJson,
-                    label = { Text(stringResource(R.string.create_role_extensions_json)) },
-                    minLines = 4,
-                )
+                if (allowExtensions) {
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = uiState.extensionsJson,
+                        onValueChange = viewModel::updateExtensionsJson,
+                        label = { Text(stringResource(R.string.create_role_extensions_json)) },
+                        minLines = 4,
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.create_role_extensions_disabled),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = uiState.characterBookJson,
@@ -389,11 +401,13 @@ fun CreateRoleScreen(
                         selected = uiState.characterType == CardCharacterType.Simulator,
                         onClick = { viewModel.updateCharacterType(CardCharacterType.Simulator) },
                     )
-                    TypeButton(
-                        label = stringResource(R.string.create_role_type_extension),
-                        selected = uiState.characterType == CardCharacterType.Extension,
-                        onClick = { viewModel.updateCharacterType(CardCharacterType.Extension) },
-                    )
+                    if (allowExtensions) {
+                        TypeButton(
+                            label = stringResource(R.string.create_role_type_extension),
+                            selected = uiState.characterType == CardCharacterType.Extension,
+                            onClick = { viewModel.updateCharacterType(CardCharacterType.Extension) },
+                        )
+                    }
                 }
             }
 
@@ -401,7 +415,10 @@ fun CreateRoleScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                Button(onClick = { viewModel.submit(allowNsfw) }, enabled = !uiState.isSubmitting) {
+                Button(
+                    onClick = { viewModel.submit(allowNsfw) },
+                    enabled = !uiState.isSubmitting && !extensionsBlocked,
+                ) {
                     Text(
                         stringResource(
                             if (uiState.isEditing) {

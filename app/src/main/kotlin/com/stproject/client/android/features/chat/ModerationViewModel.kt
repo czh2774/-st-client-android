@@ -177,7 +177,7 @@ class ModerationViewModel
                     val result =
                         blockCharacterUseCase.execute(
                             characterId = resolvedTargetId,
-                            isNsfwHint = false,
+                            isNsfwHint = null,
                             value = true,
                         )
                     if (result is GuardedActionResult.Blocked) {

@@ -4,6 +4,7 @@ import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentAccessManager
 import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
@@ -34,6 +35,7 @@ class ResolveContentAccessUseCaseTest {
 
     private class FakeCharacterRepository(
         private val isNsfw: Boolean,
+        private val ageRating: AgeRating? = null,
     ) : CharacterRepository {
         var detailCalls = 0
 
@@ -53,6 +55,7 @@ class ResolveContentAccessUseCaseTest {
                 tags = emptyList(),
                 creatorName = null,
                 isNsfw = isNsfw,
+                moderationAgeRating = ageRating,
                 totalFollowers = 0,
                 isFollowed = false,
             )
@@ -108,6 +111,31 @@ class ResolveContentAccessUseCaseTest {
                     allowNsfwPreference = false,
                 )
             val repo = FakeCharacterRepository(isNsfw = true)
+            val useCase =
+                ResolveContentAccessUseCase(
+                    accessManager = FakeAccessManager(gate),
+                    characterRepository = repo,
+                )
+            val result = useCase.execute(memberId = "char-1", isNsfwHint = null)
+
+            assertEquals(
+                ContentAccessDecision.Blocked(ContentBlockReason.NSFW_DISABLED),
+                result,
+            )
+            assertEquals(1, repo.detailCalls)
+        }
+
+    @Test
+    fun `blocks when resolved character is adult rating`() =
+        runTest {
+            val gate =
+                ContentGate(
+                    consentLoaded = true,
+                    consentRequired = false,
+                    ageVerified = true,
+                    allowNsfwPreference = false,
+                )
+            val repo = FakeCharacterRepository(isNsfw = false, ageRating = AgeRating.Age18)
             val useCase =
                 ResolveContentAccessUseCase(
                     accessManager = FakeAccessManager(gate),

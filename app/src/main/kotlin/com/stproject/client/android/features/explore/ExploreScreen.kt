@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.NsfwBlockedDialog
+import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.domain.model.CharacterSummary
 import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chat.ReportDialog
@@ -59,12 +61,18 @@ fun ExploreScreen(
         viewModel.load()
     }
 
-    LaunchedEffect(uiState.resolvedMemberId, uiState.resolvedShareCode, uiState.resolvedIsNsfw, allowNsfw) {
+    LaunchedEffect(
+        uiState.resolvedMemberId,
+        uiState.resolvedShareCode,
+        uiState.resolvedIsNsfw,
+        uiState.resolvedAgeRating,
+        allowNsfw,
+    ) {
         val memberId = uiState.resolvedMemberId
         val shareCode = uiState.resolvedShareCode
         if (!memberId.isNullOrBlank() && !shareCode.isNullOrBlank()) {
-            if (contentGate.isRestricted(uiState.resolvedIsNsfw)) {
-                if (contentGate.isNsfwBlocked(uiState.resolvedIsNsfw)) {
+            if (contentGate.isRestricted(uiState.resolvedIsNsfw, uiState.resolvedAgeRating)) {
+                if (contentGate.isNsfwBlocked(uiState.resolvedIsNsfw, uiState.resolvedAgeRating)) {
                     nsfwBlockedOpen = true
                 }
                 viewModel.consumeResolvedShareCode()
@@ -90,6 +98,13 @@ fun ExploreScreen(
                     text = stringResource(R.string.explore_share_title),
                     style = MaterialTheme.typography.titleSmall,
                 )
+                val hasMatureItems =
+                    uiState.items.any {
+                        resolveNsfwHint(it.isNsfw, it.moderationAgeRating) == true
+                    }
+                if (contentGate.nsfwAllowed && hasMatureItems) {
+                    RestrictedContentNotice(onReport = null)
+                }
                 OutlinedTextField(
                     modifier =
                         Modifier
@@ -167,8 +182,8 @@ fun ExploreScreen(
                     CharacterRow(
                         item = item,
                         onStartChat = { character ->
-                            if (contentGate.isRestricted(character.isNsfw)) {
-                                if (contentGate.isNsfwBlocked(character.isNsfw)) {
+                            if (contentGate.isRestricted(character.isNsfw, character.moderationAgeRating)) {
+                                if (contentGate.isNsfwBlocked(character.isNsfw, character.moderationAgeRating)) {
                                     nsfwBlockedOpen = true
                                 }
                                 return@CharacterRow
@@ -176,8 +191,8 @@ fun ExploreScreen(
                             onStartChat(character.id, null)
                         },
                         onOpenDetail = { character ->
-                            if (contentGate.isRestricted(character.isNsfw)) {
-                                if (contentGate.isNsfwBlocked(character.isNsfw)) {
+                            if (contentGate.isRestricted(character.isNsfw, character.moderationAgeRating)) {
+                                if (contentGate.isNsfwBlocked(character.isNsfw, character.moderationAgeRating)) {
                                     nsfwBlockedOpen = true
                                 }
                                 return@CharacterRow
@@ -276,7 +291,7 @@ private fun CharacterRow(
         if (item.description.isNotBlank()) {
             Text(text = item.description, style = MaterialTheme.typography.bodyMedium)
         }
-        if (item.isNsfw) {
+        if (resolveNsfwHint(item.isNsfw, item.moderationAgeRating) == true) {
             Text(
                 text = stringResource(R.string.content_nsfw_label),
                 style = MaterialTheme.typography.bodySmall,

@@ -25,4 +25,12 @@ interface StUserApi {
     suspend fun updateUserConfig(
         @Body request: UpdateUserConfigRequestDto,
     ): ApiEnvelope<UserConfigDto>
+
+    @GET("users/decorations")
+    suspend fun listDecorations(): ApiEnvelope<DecorationListResponseDto>
+
+    @POST("users/decorations/equip")
+    suspend fun equipDecoration(
+        @Body request: EquipDecorationRequestDto,
+    ): ApiEnvelope<OkResponseDto>
 }

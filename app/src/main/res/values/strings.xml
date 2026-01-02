@@ -32,6 +32,7 @@
     <string name="common_chat">Chat</string>
     <string name="common_comments">Comments</string>
     <string name="compliance_loading">Completing compliance checks...</string>
+    <string name="content_access_blocked_title">Content unavailable</string>
     <string name="content_mature_disabled_title">Mature content disabled</string>
     <string name="content_mature_disabled_body">Enable 18+ content in Settings to continue.</string>
     <string name="content_mature_disabled_inline">Mature content disabled. Enable 18+ content in Settings.</string>
@@ -75,7 +76,7 @@
     <string name="chat_variables_title">Session Variables</string>
     <string name="chat_variables_label">Variables (JSON)</string>
     <string name="chat_variables_save">Save</string>
-    <string name="chat_variables_hint">Session-only variables (xb_vars). Prompt-Template setvar syncs here; /setglobalvar maps to this session.</string>
+    <string name="chat_variables_hint">Session variables (xb_vars). Prompt-Template setvar syncs here; /setglobalvar writes to global variables.</string>
     <string name="chat_variables_loading">Loading variables...</string>
     <string name="chat_variables_invalid_json">Invalid JSON object.</string>
     <string name="chat_share_resolving_title">Resolving share code</string>
@@ -279,6 +280,7 @@
     <string name="create_role_group_only_greetings">Group-only greetings (one per line)</string>
     <string name="create_role_avatar_url">Avatar URL</string>
     <string name="create_role_extensions_json">Extensions JSON</string>
+    <string name="create_role_extensions_disabled">Extensions are not available in the Play build.</string>
     <string name="create_role_character_book_json">Lorebook JSON</string>
     <string name="create_role_nsfw">NSFW (18+)</string>
     <string name="create_role_visibility">Visibility</string>

@@ -9,6 +9,7 @@ import com.stproject.client.android.core.network.ClientHeadersInterceptor
 import com.stproject.client.android.core.network.StApi
 import com.stproject.client.android.core.network.StAuthApi
 import com.stproject.client.android.core.network.StBaseUrlProvider
+import com.stproject.client.android.core.network.StBackgroundApi
 import com.stproject.client.android.core.network.StCardApi
 import com.stproject.client.android.core.network.StCharacterApi
 import com.stproject.client.android.core.network.StCommentApi
@@ -119,6 +120,10 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideStUserApi(retrofit: Retrofit): StUserApi = retrofit.create(StUserApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStBackgroundApi(retrofit: Retrofit): StBackgroundApi = retrofit.create(StBackgroundApi::class.java)
 
     @Provides
     @Singleton

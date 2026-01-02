@@ -10,6 +10,7 @@ oriented; it is not a substitute for the official Play policy docs.
 - Feature parity with `st-client-React` where adult content exists.
 - Server (`st-server-go`) is the source of truth for content rating, user config,
   and enforcement flags.
+- Feature scope decisions for Play are tracked in `PLAY_SCOPE.md`.
 
 ## Policy-Aligned Product Decisions (Required)
 1) Content rating taxonomy (server-driven)
@@ -46,10 +47,12 @@ oriented; it is not a substitute for the official Play policy docs.
 Source of truth: `st-server-go` HTTP responses.
 - Character detail (`GET /characters/:id`)
   - `isNsfw` (boolean): primary adult-content flag.
+  - `moderationAgeRating` (string): server moderation age bucket (`all`, `13+`, `16+`, `18+`, `unknown`).
   - `tags` (string[]): used by server-side filtering and client UI.
   - `visibility` (string): `public` or `private`.
 - Character list/query (`POST /characters/query`)
   - `isNsfw` (boolean): summary flag for explore lists.
+  - `moderationAgeRating` (string): summary age rating bucket.
 - User config (`GET /users/config`)
   - `blockedTags` (string[]): user-level content blocks; `nsfw` blocks NSFW.
   - `ageVerified` (boolean) and `birthDate` (string): required for 18+ access.

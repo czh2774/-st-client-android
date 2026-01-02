@@ -37,7 +37,15 @@ class CreatorsViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
+                                nextCursor = null,
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     val result =
@@ -72,7 +80,15 @@ class CreatorsViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
+                                nextCursor = null,
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     val result =

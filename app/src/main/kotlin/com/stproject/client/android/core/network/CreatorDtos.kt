@@ -35,6 +35,7 @@ data class CreatorCharacterDto(
     val avatarUrl: String? = null,
     val tags: List<String>? = null,
     val isNsfw: Boolean? = null,
+    val moderationAgeRating: String? = null,
     val isPublic: Boolean? = null,
     val creatorId: String? = null,
     val creatorName: String? = null,

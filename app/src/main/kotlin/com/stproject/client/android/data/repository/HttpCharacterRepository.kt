@@ -8,6 +8,7 @@ import com.stproject.client.android.core.network.CharacterFollowResponseDto
 import com.stproject.client.android.core.network.QueryCharacterItemDto
 import com.stproject.client.android.core.network.QueryCharactersRequestDto
 import com.stproject.client.android.core.network.StCharacterApi
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
@@ -88,6 +89,7 @@ class HttpCharacterRepository
                 description = description?.trim().orEmpty(),
                 avatarUrl = avatar?.trim()?.takeIf { it.isNotEmpty() },
                 isNsfw = isNsfw ?: false,
+                moderationAgeRating = AgeRating.from(moderationAgeRating),
                 totalFollowers = totalFollowers ?: 0,
                 isFollowed = isFollowed ?: false,
             )
@@ -100,6 +102,7 @@ class HttpCharacterRepository
                 tags = tags ?: emptyList(),
                 creatorName = creatorName?.trim()?.takeIf { it.isNotEmpty() },
                 isNsfw = isNsfw ?: false,
+                moderationAgeRating = AgeRating.from(moderationAgeRating),
                 totalFollowers = totalFollowers ?: 0,
                 isFollowed = isFollowed ?: false,
             )

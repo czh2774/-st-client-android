@@ -7,6 +7,7 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
 import com.stproject.client.android.domain.usecase.GuardedActionResult
@@ -40,6 +41,7 @@ class ExploreViewModel
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                items = emptyList(),
                                 accessError = access.userMessage(),
                             )
                         }
@@ -74,8 +76,14 @@ class ExploreViewModel
             if (cleanId.isEmpty()) return
             viewModelScope.launch {
                 try {
-                    val isNsfwHint = _uiState.value.items.firstOrNull { it.id == cleanId }?.isNsfw
-                    val result = followCharacterUseCase.execute(cleanId, isNsfwHint, value)
+                    val item = _uiState.value.items.firstOrNull { it.id == cleanId }
+                    val result =
+                        followCharacterUseCase.execute(
+                            cleanId,
+                            item?.isNsfw,
+                            value,
+                            ageRatingHint = item?.moderationAgeRating,
+                        )
                     if (result is GuardedActionResult.Blocked) {
                         _uiState.update { it.copy(error = result.decision.userMessage()) }
                         return@launch
@@ -127,22 +135,27 @@ class ExploreViewModel
                         }
                         return@launch
                     }
-                    val resolvedIsNsfw =
-                        if (allowNsfw) {
-                            null
-                        } else {
-                            val detail = characterRepository.getCharacterDetail(memberId)
-                            detail.isNsfw
-                        }
+                    var resolvedIsNsfw: Boolean? = null
+                    var resolvedAgeRating: AgeRating? = null
+                    if (!allowNsfw) {
+                        val detail = characterRepository.getCharacterDetail(memberId)
+                        resolvedIsNsfw = detail.isNsfw
+                        resolvedAgeRating = detail.moderationAgeRating
+                    }
                     val access =
                         resolveContentAccess.execute(
                             memberId = memberId,
                             isNsfwHint = resolvedIsNsfw,
+                            ageRatingHint = resolvedAgeRating,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
                                 isResolvingShareCode = false,
+                                resolvedMemberId = null,
+                                resolvedShareCode = null,
+                                resolvedIsNsfw = null,
+                                resolvedAgeRating = null,
                                 accessError = access.userMessage(),
                             )
                         }
@@ -154,6 +167,7 @@ class ExploreViewModel
                             resolvedMemberId = memberId,
                             resolvedShareCode = normalized,
                             resolvedIsNsfw = resolvedIsNsfw,
+                            resolvedAgeRating = resolvedAgeRating,
                         )
                     }
                 } catch (e: ApiException) {
@@ -181,6 +195,7 @@ class ExploreViewModel
                     resolvedMemberId = null,
                     resolvedShareCode = null,
                     resolvedIsNsfw = null,
+                    resolvedAgeRating = null,
                 )
             }
         }

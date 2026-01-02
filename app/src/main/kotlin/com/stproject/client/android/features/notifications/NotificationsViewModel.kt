@@ -7,6 +7,7 @@ import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.repository.NotificationRepository
+import com.stproject.client.android.domain.repository.UnreadCounts
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,9 +31,18 @@ class NotificationsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
+                                pageNum = 1,
+                                unreadCounts = UnreadCounts(0, 0, 0, 0, 0),
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     val unread = notificationRepository.getUnreadCounts()
@@ -62,9 +72,16 @@ class NotificationsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     val result = notificationRepository.listNotifications(pageNum = nextPage, pageSize = 50)
@@ -90,9 +107,17 @@ class NotificationsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
+                                unreadCounts = UnreadCounts(0, 0, 0, 0, 0),
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     notificationRepository.markAsRead(ids = emptyList(), markAll = true)
@@ -113,9 +138,17 @@ class NotificationsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
+                                unreadCounts = UnreadCounts(0, 0, 0, 0, 0),
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     notificationRepository.markAsRead(ids = listOf(id), markAll = false)

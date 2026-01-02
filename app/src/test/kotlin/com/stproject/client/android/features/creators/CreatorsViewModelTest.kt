@@ -120,6 +120,7 @@ class CreatorsViewModelTest : BaseUnitTest() {
         override suspend fun execute(
             memberId: String?,
             isNsfwHint: Boolean?,
+            ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
         ): ContentAccessDecision {
             return ContentAccessDecision.Blocked(ContentBlockReason.NSFW_DISABLED)
         }

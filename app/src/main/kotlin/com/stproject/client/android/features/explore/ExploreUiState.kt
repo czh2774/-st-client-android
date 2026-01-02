@@ -1,5 +1,6 @@
 package com.stproject.client.android.features.explore
 
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.CharacterSummary
 
 data class ExploreUiState(
@@ -13,4 +14,5 @@ data class ExploreUiState(
     val resolvedShareCode: String? = null,
     val resolvedMemberId: String? = null,
     val resolvedIsNsfw: Boolean? = null,
+    val resolvedAgeRating: AgeRating? = null,
 )

@@ -33,7 +33,15 @@ class CreatorAssistantListViewModel
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
-                            it.copy(isLoading = false, error = access.userMessage())
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                pageNum = 1,
+                                hasMore = false,
+                                newSessionId = null,
+                                openSessionId = null,
+                                error = access.userMessage(),
+                            )
                         }
                         return@launch
                     }
@@ -65,7 +73,12 @@ class CreatorAssistantListViewModel
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
-                            it.copy(isLoading = false, error = access.userMessage())
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                hasMore = false,
+                                error = access.userMessage(),
+                            )
                         }
                         return@launch
                     }
@@ -95,7 +108,11 @@ class CreatorAssistantListViewModel
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
-                            it.copy(isLoading = false, error = access.userMessage())
+                            it.copy(
+                                isLoading = false,
+                                newSessionId = null,
+                                error = access.userMessage(),
+                            )
                         }
                         return@launch
                     }
@@ -119,7 +136,11 @@ class CreatorAssistantListViewModel
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
-                            it.copy(isLoading = false, error = access.userMessage())
+                            it.copy(
+                                isLoading = false,
+                                openSessionId = null,
+                                error = access.userMessage(),
+                            )
                         }
                         return@launch
                     }

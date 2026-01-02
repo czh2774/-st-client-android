@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.domain.model.CreatorAssistantSessionSummary
 
 @Composable
@@ -33,6 +35,7 @@ fun CreatorAssistantListScreen(
     viewModel: CreatorAssistantListViewModel,
     onBack: () -> Unit,
     onOpenSession: (String) -> Unit,
+    contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -73,6 +76,9 @@ fun CreatorAssistantListScreen(
                     text = stringResource(R.string.assistant_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
+                if (contentGate.nsfwAllowed) {
+                    RestrictedContentNotice(onReport = null)
+                }
                 Button(onClick = viewModel::startSession, enabled = !uiState.isLoading) {
                     Text(stringResource(R.string.assistant_new_session))
                 }

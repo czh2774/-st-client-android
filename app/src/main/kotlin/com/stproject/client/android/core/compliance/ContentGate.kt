@@ -1,5 +1,6 @@
 package com.stproject.client.android.core.compliance
 
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.features.settings.ComplianceUiState
 
 data class ContentGate(
@@ -13,22 +14,32 @@ data class ContentGate(
     val nsfwAllowed: Boolean =
         contentAllowed && allowNsfwPreference
 
-    fun decideAccess(isNsfw: Boolean?): ContentAccessDecision {
+    fun decideAccess(
+        isNsfw: Boolean?,
+        ageRating: AgeRating? = null,
+    ): ContentAccessDecision {
+        val resolvedNsfw = resolveNsfwHint(isNsfw, ageRating)
         if (!consentLoaded) return ContentAccessDecision.Blocked(ContentBlockReason.CONSENT_PENDING)
         if (consentRequired) return ContentAccessDecision.Blocked(ContentBlockReason.CONSENT_REQUIRED)
         if (!ageVerified) return ContentAccessDecision.Blocked(ContentBlockReason.AGE_REQUIRED)
-        if (!allowNsfwPreference && isNsfw != false) {
+        if (!allowNsfwPreference && resolvedNsfw != false) {
             return ContentAccessDecision.Blocked(ContentBlockReason.NSFW_DISABLED)
         }
         return ContentAccessDecision.Allowed
     }
 
-    fun isRestricted(isNsfw: Boolean?): Boolean {
-        return decideAccess(isNsfw) is ContentAccessDecision.Blocked
+    fun isRestricted(
+        isNsfw: Boolean?,
+        ageRating: AgeRating? = null,
+    ): Boolean {
+        return decideAccess(isNsfw, ageRating) is ContentAccessDecision.Blocked
     }
 
-    fun isNsfwBlocked(isNsfw: Boolean?): Boolean {
-        val decision = decideAccess(isNsfw)
+    fun isNsfwBlocked(
+        isNsfw: Boolean?,
+        ageRating: AgeRating? = null,
+    ): Boolean {
+        val decision = decideAccess(isNsfw, ageRating)
         return decision is ContentAccessDecision.Blocked &&
             decision.reason == ContentBlockReason.NSFW_DISABLED
     }

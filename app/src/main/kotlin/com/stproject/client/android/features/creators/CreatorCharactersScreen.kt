@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.NsfwBlockedDialog
+import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.domain.model.CreatorCharacter
 
 @Composable
@@ -66,6 +68,9 @@ fun CreatorCharactersScreen(
                     text = stringResource(R.string.creator_characters_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
+                if (contentGate.nsfwAllowed) {
+                    RestrictedContentNotice(onReport = null)
+                }
             }
             if (uiState.isLoading && uiState.items.isEmpty()) {
                 Row(
@@ -94,8 +99,8 @@ fun CreatorCharactersScreen(
                     CreatorCharacterRow(
                         item = item,
                         onStartChat = { character ->
-                            if (contentGate.isRestricted(character.isNsfw)) {
-                                if (contentGate.isNsfwBlocked(character.isNsfw)) {
+                            if (contentGate.isRestricted(character.isNsfw, character.moderationAgeRating)) {
+                                if (contentGate.isNsfwBlocked(character.isNsfw, character.moderationAgeRating)) {
                                     nsfwBlockedOpen = true
                                 }
                                 return@CreatorCharacterRow
@@ -103,8 +108,8 @@ fun CreatorCharactersScreen(
                             onStartChat(character.id)
                         },
                         onOpenDetail = { character ->
-                            if (contentGate.isRestricted(character.isNsfw)) {
-                                if (contentGate.isNsfwBlocked(character.isNsfw)) {
+                            if (contentGate.isRestricted(character.isNsfw, character.moderationAgeRating)) {
+                                if (contentGate.isNsfwBlocked(character.isNsfw, character.moderationAgeRating)) {
                                     nsfwBlockedOpen = true
                                 }
                                 return@CreatorCharacterRow
@@ -161,7 +166,7 @@ private fun CreatorCharacterRow(
         if (item.description.isNotBlank()) {
             Text(text = item.description, style = MaterialTheme.typography.bodyMedium)
         }
-        if (item.isNsfw) {
+        if (resolveNsfwHint(item.isNsfw, item.moderationAgeRating) == true) {
             Text(
                 text = stringResource(R.string.content_nsfw_label),
                 style = MaterialTheme.typography.bodySmall,

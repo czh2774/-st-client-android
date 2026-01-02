@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chat.ReportDialog
 
@@ -119,9 +120,9 @@ fun CharacterDetailScreen(
             }
 
             val detail = uiState.detail
-            val accessRestricted = contentGate.isRestricted(detail?.isNsfw)
+            val accessRestricted = contentGate.isRestricted(detail?.isNsfw, detail?.moderationAgeRating)
             if (detail != null) {
-                val nsfwBlocked = contentGate.isNsfwBlocked(detail.isNsfw)
+                val nsfwBlocked = contentGate.isNsfwBlocked(detail.isNsfw, detail.moderationAgeRating)
                 Text(text = detail.name, style = MaterialTheme.typography.headlineSmall)
                 if (detail.creatorName != null) {
                     Text(
@@ -148,7 +149,7 @@ fun CharacterDetailScreen(
                         text = stringResource(R.string.content_mature_disabled_inline),
                         color = MaterialTheme.colorScheme.error,
                     )
-                } else if (detail.isNsfw && contentGate.nsfwAllowed) {
+                } else if (contentGate.nsfwAllowed && resolveNsfwHint(detail.isNsfw, detail.moderationAgeRating) == true) {
                     RestrictedContentNotice(
                         onReport = {
                             reportOpen = true

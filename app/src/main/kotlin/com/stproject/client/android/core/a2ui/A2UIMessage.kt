@@ -17,6 +17,7 @@ data class A2UISurfaceUpdate(
 
 data class A2UIComponentDefinition(
     val id: String? = null,
+    val weight: Double? = null,
     val component: JsonObject? = null,
 )
 
@@ -39,6 +40,7 @@ data class A2UIBeginRendering(
     val surfaceId: String? = null,
     val root: String? = null,
     val catalogId: String? = null,
+    val styles: JsonObject? = null,
 )
 
 data class A2UIDeleteSurface(

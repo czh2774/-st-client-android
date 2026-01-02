@@ -4,6 +4,7 @@ import com.stproject.client.android.core.network.ApiClient
 import com.stproject.client.android.core.network.CreatorCardDto
 import com.stproject.client.android.core.network.CreatorCharacterDto
 import com.stproject.client.android.core.network.StCreatorApi
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.CreatorCharacter
 import com.stproject.client.android.domain.model.CreatorSummary
 import com.stproject.client.android.domain.repository.CreatorCharactersResult
@@ -93,6 +94,7 @@ class HttpCreatorRepository
                 backgroundUrl = backgroundUrl?.trim()?.takeIf { it.isNotEmpty() },
                 tags = tags ?: emptyList(),
                 isNsfw = isNsfw ?: false,
+                moderationAgeRating = AgeRating.from(moderationAgeRating),
                 creatorId = creatorId?.trim()?.takeIf { it.isNotEmpty() },
                 creatorName = creatorName?.trim()?.takeIf { it.isNotEmpty() },
                 updatedAt = updatedAt?.trim()?.takeIf { it.isNotEmpty() },

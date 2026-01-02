@@ -6,6 +6,7 @@ data class CharacterSummary(
     val description: String,
     val avatarUrl: String?,
     val isNsfw: Boolean,
+    val moderationAgeRating: AgeRating? = null,
     val totalFollowers: Int,
     val isFollowed: Boolean,
 )

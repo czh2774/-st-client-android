@@ -39,3 +39,13 @@ data class DialogStreamRequestDto(
     val worldInfoMinActivations: Int? = null,
     val worldInfoMinActivationsDepthMax: Int? = null,
 )
+
+data class DialogVariablesRequestDto(
+    val messageId: String,
+    val swipesData: List<Map<String, Any>>,
+    val swipesInfo: List<Map<String, Any>>? = null,
+)
+
+data class DialogVariablesResponseDto(
+    val messageId: String? = null,
+)

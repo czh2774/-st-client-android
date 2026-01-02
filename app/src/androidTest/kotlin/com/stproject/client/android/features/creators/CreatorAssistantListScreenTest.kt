@@ -235,6 +235,7 @@ class CreatorAssistantListScreenTest {
         override suspend fun execute(
             memberId: String?,
             isNsfwHint: Boolean?,
+            ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
         ): ContentAccessDecision {
             calls += 1
             return if (calls == 1) {
@@ -263,6 +264,13 @@ class CreatorAssistantListScreenTest {
                 viewModel = viewModel,
                 onBack = {},
                 onOpenSession = { openedSessionId = it },
+                contentGate =
+                    ContentGate(
+                        consentLoaded = true,
+                        consentRequired = false,
+                        ageVerified = true,
+                        allowNsfwPreference = true,
+                    ),
             )
         }
 

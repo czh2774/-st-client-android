@@ -46,7 +46,15 @@ class CreatorAssistantChatViewModel
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
-                            it.copy(isLoading = false, error = access.userMessage())
+                            it.copy(
+                                isLoading = false,
+                                messages = emptyList(),
+                                currentDraft = null,
+                                draftResult = null,
+                                publishResult = null,
+                                draftReady = false,
+                                error = access.userMessage(),
+                            )
                         }
                         return@launch
                     }
@@ -83,7 +91,17 @@ class CreatorAssistantChatViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isSending = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isSending = false,
+                                messages = emptyList(),
+                                currentDraft = null,
+                                draftResult = null,
+                                publishResult = null,
+                                draftReady = false,
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     val userMessage =
@@ -128,7 +146,17 @@ class CreatorAssistantChatViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isDrafting = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isDrafting = false,
+                                messages = emptyList(),
+                                currentDraft = null,
+                                draftResult = null,
+                                publishResult = null,
+                                draftReady = false,
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     val result = repository.generateDraft(sessionId)
@@ -163,7 +191,17 @@ class CreatorAssistantChatViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isPublishing = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isPublishing = false,
+                                messages = emptyList(),
+                                currentDraft = null,
+                                draftResult = null,
+                                publishResult = null,
+                                draftReady = false,
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     val result = repository.publish(sessionId, draftId, isPublic = true)

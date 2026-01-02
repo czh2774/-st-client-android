@@ -35,7 +35,14 @@ class ChatsListViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                lastSession = null,
+                                error = access.userMessage(),
+                            )
+                        }
                         return@launch
                     }
                     val items = chatRepository.listSessions(limit = 20, offset = 0)
@@ -74,11 +81,14 @@ class ChatsListViewModel
             return items.map { item ->
                 val memberId = item.primaryMemberId?.trim().orEmpty()
                 if (memberId.isEmpty()) return@map item
-                val isNsfw =
+                val detail =
                     runCatching {
-                        characterRepository.getCharacterDetail(memberId).isNsfw
+                        characterRepository.getCharacterDetail(memberId)
                     }.getOrNull()
-                item.copy(primaryMemberIsNsfw = isNsfw)
+                item.copy(
+                    primaryMemberIsNsfw = detail?.isNsfw,
+                    primaryMemberAgeRating = detail?.moderationAgeRating,
+                )
             }
         }
     }

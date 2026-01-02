@@ -9,6 +9,7 @@ data class CharacterDetailDto(
     val creatorId: String? = null,
     val creatorName: String? = null,
     val isNsfw: Boolean? = null,
+    val moderationAgeRating: String? = null,
     val totalFollowers: Int? = null,
     val isFollowed: Boolean? = null,
 )

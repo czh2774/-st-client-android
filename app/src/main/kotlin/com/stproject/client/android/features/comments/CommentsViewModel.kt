@@ -51,11 +51,19 @@ class CommentsViewModel
             }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(cleanId, _uiState.value.characterIsNsfw)
+                    val access =
+                        resolveContentAccess.execute(
+                            cleanId,
+                            _uiState.value.characterIsNsfw,
+                            ageRatingHint = _uiState.value.characterAgeRating,
+                        )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
+                                items = emptyList(),
+                                total = 0,
+                                hasMore = false,
                                 accessError = access.userMessage(),
                             )
                         }
@@ -73,6 +81,7 @@ class CommentsViewModel
                             pageNum = 1,
                             characterName = detail.name,
                             characterIsNsfw = detail.isNsfw,
+                            characterAgeRating = detail.moderationAgeRating,
                             currentUserId = currentUserId ?: it.currentUserId,
                         )
                     }
@@ -104,11 +113,19 @@ class CommentsViewModel
             _uiState.update { it.copy(isLoadingMore = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(characterId, state.characterIsNsfw)
+                    val access =
+                        resolveContentAccess.execute(
+                            characterId,
+                            state.characterIsNsfw,
+                            ageRatingHint = state.characterAgeRating,
+                        )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
                                 isLoadingMore = false,
+                                items = emptyList(),
+                                total = 0,
+                                hasMore = false,
                                 accessError = access.userMessage(),
                             )
                         }
@@ -165,7 +182,12 @@ class CommentsViewModel
             _uiState.update { it.copy(isSubmitting = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(characterId, state.characterIsNsfw)
+                    val access =
+                        resolveContentAccess.execute(
+                            characterId,
+                            state.characterIsNsfw,
+                            ageRatingHint = state.characterAgeRating,
+                        )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -201,7 +223,12 @@ class CommentsViewModel
             val characterId = state.characterId ?: return
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(characterId, state.characterIsNsfw)
+                    val access =
+                        resolveContentAccess.execute(
+                            characterId,
+                            state.characterIsNsfw,
+                            ageRatingHint = state.characterAgeRating,
+                        )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update { it.copy(accessError = access.userMessage()) }
                         return@launch
@@ -222,7 +249,12 @@ class CommentsViewModel
             val characterId = state.characterId ?: return
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(characterId, state.characterIsNsfw)
+                    val access =
+                        resolveContentAccess.execute(
+                            characterId,
+                            state.characterIsNsfw,
+                            ageRatingHint = state.characterAgeRating,
+                        )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update { it.copy(accessError = access.userMessage()) }
                         return@launch

@@ -65,6 +65,11 @@ interface StApi {
         @Body request: DialogSwipeDeleteRequestDto,
     ): ApiEnvelope<DialogSwipeResponseDto>
 
+    @POST("dialogs/variables")
+    suspend fun updateDialogVariables(
+        @Body request: DialogVariablesRequestDto,
+    ): ApiEnvelope<DialogVariablesResponseDto>
+
     @POST("a2ui/event")
     suspend fun sendA2UIEvent(
         @Body request: A2UIEventRequestDto,

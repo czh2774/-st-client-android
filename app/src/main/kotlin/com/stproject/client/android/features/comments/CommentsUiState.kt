@@ -1,5 +1,6 @@
 package com.stproject.client.android.features.comments
 
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.Comment
 import com.stproject.client.android.domain.model.CommentSort
 
@@ -12,6 +13,7 @@ data class CommentsUiState(
     val characterId: String? = null,
     val characterName: String? = null,
     val characterIsNsfw: Boolean? = null,
+    val characterAgeRating: AgeRating? = null,
     val sort: CommentSort = CommentSort.Hot,
     val items: List<Comment> = emptyList(),
     val total: Int = 0,

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.domain.model.Comment
 import com.stproject.client.android.domain.model.CommentSort
 import com.stproject.client.android.features.chat.ModerationViewModel
@@ -123,7 +124,9 @@ fun CommentsScreen(
                 )
             }
 
-            if (uiState.characterIsNsfw == true && contentGate.nsfwAllowed) {
+            if (contentGate.nsfwAllowed &&
+                resolveNsfwHint(uiState.characterIsNsfw, uiState.characterAgeRating) == true
+            ) {
                 RestrictedContentNotice(onReport = null)
             }
 

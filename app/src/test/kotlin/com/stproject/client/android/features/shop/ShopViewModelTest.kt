@@ -39,6 +39,7 @@ class ShopViewModelTest : BaseUnitTest() {
             IapTransactionResult(ok = true, status = "processed", serverTimeMs = 0),
     ) : IapRepository {
         val submitted = mutableListOf<IapTransactionRequest>()
+        val restoreRequests = mutableListOf<IapRestoreRequest>()
 
         override suspend fun getCatalog(): IapCatalog {
             return IapCatalog(
@@ -65,6 +66,7 @@ class ShopViewModelTest : BaseUnitTest() {
         }
 
         override suspend fun restore(request: IapRestoreRequest): IapRestoreResult {
+            restoreRequests.add(request)
             return IapRestoreResult(serverTimeMs = 0)
         }
     }
@@ -276,5 +278,67 @@ class ShopViewModelTest : BaseUnitTest() {
             assertEquals("verification_failed", viewModel.uiState.value.error)
             coVerify(exactly = 0) { billingManager.consumePurchase(any()) }
             coVerify(exactly = 0) { billingManager.acknowledgePurchase(any()) }
+        }
+
+    @Test
+    fun `restore purchases submits transactions and consumes in-apps`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val updates = MutableSharedFlow<BillingPurchaseUpdate>(extraBufferCapacity = 1)
+            val billingManager = mockk<BillingManager>()
+            every { billingManager.purchaseUpdates } returns updates
+            coEvery { billingManager.queryProductDetails(any()) } returns emptyList()
+            coEvery { billingManager.connect() } returns true
+            coEvery { billingManager.queryPurchases(BillingClient.ProductType.SUBS) } returns emptyList()
+            coEvery { billingManager.consumePurchase(any()) } returns true
+            coEvery { billingManager.acknowledgePurchase(any()) } returns true
+
+            val purchase = mockk<Purchase>()
+            every { purchase.purchaseState } returns Purchase.PurchaseState.PURCHASED
+            every { purchase.purchaseToken } returns "restore-token"
+            every { purchase.products } returns listOf("prod-1")
+            every { purchase.orderId } returns "order-restore"
+            every { purchase.purchaseTime } returns 1234L
+            every { purchase.originalJson } returns "{\"productId\":\"prod-1\"}"
+            every { purchase.signature } returns "sig"
+            every { purchase.isAcknowledged } returns false
+            coEvery { billingManager.queryPurchases(BillingClient.ProductType.INAPP) } returns listOf(purchase)
+
+            val repo = FakeIapRepository(kind = "credits")
+            val viewModel = createViewModel(repo, billingManager)
+
+            viewModel.load()
+            advanceUntilIdle()
+
+            viewModel.restorePurchases()
+            advanceUntilIdle()
+
+            assertEquals(1, repo.restoreRequests.size)
+            assertEquals("android", repo.restoreRequests.first().platform)
+            assertEquals("Sandbox", repo.restoreRequests.first().environment)
+            assertEquals(1, repo.restoreRequests.first().transactions.size)
+            coVerify { billingManager.consumePurchase("restore-token") }
+        }
+
+    @Test
+    fun `restore purchases handles empty history`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val updates = MutableSharedFlow<BillingPurchaseUpdate>(extraBufferCapacity = 1)
+            val billingManager = mockk<BillingManager>()
+            every { billingManager.purchaseUpdates } returns updates
+            coEvery { billingManager.queryProductDetails(any()) } returns emptyList()
+            coEvery { billingManager.connect() } returns true
+            coEvery { billingManager.queryPurchases(BillingClient.ProductType.INAPP) } returns emptyList()
+            coEvery { billingManager.queryPurchases(BillingClient.ProductType.SUBS) } returns emptyList()
+
+            val repo = FakeIapRepository(kind = "credits")
+            val viewModel = createViewModel(repo, billingManager)
+
+            viewModel.load()
+            advanceUntilIdle()
+
+            viewModel.restorePurchases()
+            advanceUntilIdle()
+
+            assertEquals("No purchases to restore.", viewModel.uiState.value.error)
         }
 }

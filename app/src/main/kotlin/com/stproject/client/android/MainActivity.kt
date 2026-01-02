@@ -39,6 +39,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.deeplink.ShareCodeParser
+import com.stproject.client.android.core.flags.PlayFeatureFlags
 import com.stproject.client.android.core.theme.StTheme
 import com.stproject.client.android.features.auth.AuthScreen
 import com.stproject.client.android.features.auth.AuthViewModel
@@ -465,12 +466,14 @@ private fun AuthenticatedContent(
                             onOpenSession = { sessionId ->
                                 navController.navigate(creatorAssistantChatRoute(sessionId))
                             },
+                            contentGate = contentGate,
                         )
                     }
                     composable(CREATE_ROLE_ROUTE) {
                         CreateRoleScreen(
                             viewModel = createRoleViewModel,
                             allowNsfw = contentGate.nsfwAllowed,
+                            allowExtensions = PlayFeatureFlags.extensionsEnabled,
                             onBack = { navController.popBackStack() },
                         )
                     }
@@ -486,10 +489,14 @@ private fun AuthenticatedContent(
                             sessionId = sessionId,
                             viewModel = creatorAssistantChatViewModel,
                             onBack = { navController.popBackStack() },
+                            contentGate = contentGate,
                         )
                     }
                     composable(MainTab.Notifications.route) {
-                        NotificationsScreen(viewModel = notificationsViewModel)
+                        NotificationsScreen(
+                            viewModel = notificationsViewModel,
+                            contentGate = contentGate,
+                        )
                     }
                     composable(MainTab.Social.route) {
                         SocialScreen(

@@ -8,6 +8,7 @@ data class CreatorCharacter(
     val backgroundUrl: String?,
     val tags: List<String>,
     val isNsfw: Boolean,
+    val moderationAgeRating: AgeRating? = null,
     val creatorId: String?,
     val creatorName: String?,
     val updatedAt: String?,

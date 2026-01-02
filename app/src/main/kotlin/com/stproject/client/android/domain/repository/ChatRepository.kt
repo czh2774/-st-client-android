@@ -54,5 +54,10 @@ interface ChatRepository {
 
     suspend fun updateSessionVariables(variables: Map<String, Any>)
 
+    suspend fun updateMessageVariables(
+        messageId: String,
+        swipesData: List<Map<String, Any>>,
+    )
+
     suspend fun clearLocalSession()
 }

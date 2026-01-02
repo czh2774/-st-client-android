@@ -24,10 +24,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.domain.model.NotificationItem
 
 @Composable
-fun NotificationsScreen(viewModel: NotificationsViewModel) {
+fun NotificationsScreen(
+    viewModel: NotificationsViewModel,
+    contentGate: ContentGate,
+) {
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -49,6 +54,9 @@ fun NotificationsScreen(viewModel: NotificationsViewModel) {
                     text = stringResource(R.string.notifications_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
+                if (contentGate.nsfwAllowed) {
+                    RestrictedContentNotice(onReport = null)
+                }
                 Text(
                     text = stringResource(R.string.notifications_unread, uiState.unreadCounts.total),
                     style = MaterialTheme.typography.bodySmall,

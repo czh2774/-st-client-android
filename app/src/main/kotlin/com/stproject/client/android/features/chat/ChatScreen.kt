@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.domain.model.A2UIAction
 import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatRole
@@ -73,6 +74,18 @@ fun ChatScreen(
             !uiState.isActionRunning &&
             !uiState.isSending &&
             lastAssistant?.isStreaming != true
+
+    LaunchedEffect(contentGate.nsfwAllowed) {
+        viewModel.refreshAccessForActiveSession()
+    }
+
+    if (uiState.accessError != null) {
+        ContentBlockedScreen(
+            message = uiState.accessError ?: "",
+            onBack = onBackToList,
+        )
+        return
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -150,7 +163,9 @@ fun ChatScreen(
                     },
                 )
             }
-            if (uiState.activeCharacterIsNsfw == true && contentGate.nsfwAllowed) {
+            if (contentGate.nsfwAllowed &&
+                resolveNsfwHint(uiState.activeCharacterIsNsfw, uiState.activeCharacterAgeRating) == true
+            ) {
                 RestrictedContentNotice(
                     onReport = {
                         reportOpen = true
@@ -436,6 +451,36 @@ fun ChatScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun ContentBlockedScreen(
+    message: String,
+    onBack: () -> Unit,
+) {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.content_access_blocked_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                modifier = Modifier.padding(top = 8.dp),
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Button(
+                modifier = Modifier.padding(top = 16.dp),
+                onClick = onBack,
+            ) {
+                Text(stringResource(R.string.chat_nav_chats))
+            }
+        }
     }
 }
 

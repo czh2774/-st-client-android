@@ -24,6 +24,7 @@ data class QueryCharacterItemDto(
     val totalChats: Int? = null,
     val totalShares: Int? = null,
     val isNsfw: Boolean? = null,
+    val moderationAgeRating: String? = null,
     val isLiked: Boolean? = null,
     val isFollowed: Boolean? = null,
     val creatorId: String? = null,

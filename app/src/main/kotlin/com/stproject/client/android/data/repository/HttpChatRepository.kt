@@ -8,7 +8,6 @@ import com.stproject.client.android.core.a2ui.A2UIMessage
 import com.stproject.client.android.core.a2ui.A2UIRuntimeReducer
 import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.common.rethrowIfCancellation
-import com.stproject.client.android.core.network.A2UIActionContextEntryDto
 import com.stproject.client.android.core.network.A2UIEventRequestDto
 import com.stproject.client.android.core.network.A2UIUserActionDto
 import com.stproject.client.android.core.network.ApiClient
@@ -22,6 +21,7 @@ import com.stproject.client.android.core.network.DialogDeleteRequestDto
 import com.stproject.client.android.core.network.DialogStreamRequestDto
 import com.stproject.client.android.core.network.DialogSwipeDeleteRequestDto
 import com.stproject.client.android.core.network.DialogSwipeRequestDto
+import com.stproject.client.android.core.network.DialogVariablesRequestDto
 import com.stproject.client.android.core.network.StApi
 import com.stproject.client.android.core.network.StBaseUrlProvider
 import com.stproject.client.android.core.network.UpdateChatSessionRequestDto
@@ -208,14 +208,11 @@ class HttpChatRepository
             if (name.isEmpty()) {
                 return A2UIActionResult(accepted = false, reason = "missing_action")
             }
-            val contextEntries =
-                action.context.entries.mapNotNull {
-                    val value = it.value ?: return@mapNotNull null
-                    A2UIActionContextEntryDto(
-                        key = it.key,
-                        value = value,
-                    )
-                }
+            val context =
+                action.context.entries
+                    .mapNotNull { (key, value) -> value?.let { key to it } }
+                    .toMap()
+                    .takeIf { it.isNotEmpty() }
             val request =
                 A2UIEventRequestDto(
                     userAction =
@@ -224,7 +221,7 @@ class HttpChatRepository
                             surfaceId = action.surfaceId?.trim()?.takeIf { it.isNotEmpty() },
                             sourceComponentId = action.sourceComponentId?.trim()?.takeIf { it.isNotEmpty() },
                             timestamp = Instant.now().toString(),
-                            context = contextEntries,
+                            context = context,
                         ),
                 )
             val data = apiClient.call { api.sendA2UIEvent(request) }
@@ -483,6 +480,22 @@ class HttpChatRepository
             val resp = apiClient.call { api.updateChatSession(sessionId, request) }
             trackSessionUpdatedAt(resp)
             refreshA2UI()
+        }
+
+        override suspend fun updateMessageVariables(
+            messageId: String,
+            swipesData: List<Map<String, Any>>,
+        ) {
+            val serverId = resolveServerMessageId(messageId)
+            apiClient.call {
+                api.updateDialogVariables(
+                    DialogVariablesRequestDto(
+                        messageId = serverId,
+                        swipesData = swipesData,
+                    ),
+                )
+            }
+            updateMessageMetadata(serverId, mapOf("swipes_data" to swipesData))
         }
 
         private suspend fun ensureSessionId(): String {
@@ -968,6 +981,7 @@ class HttpChatRepository
                 isStreaming = isStreaming,
                 swipes = decodeSwipes(swipesJson),
                 swipeId = swipeId,
+                metadata = decodeMetadata(metadataJson),
             )
         }
 
@@ -1039,7 +1053,7 @@ class HttpChatRepository
 
         private fun parseSessionVariables(detail: ChatSessionDetailDto): Map<String, Any> {
             val metadata = detail.metadata ?: return emptyMap()
-            val raw = metadata["xb_vars"] ?: metadata["xbVars"]
+            val raw = metadata["xb_vars"] ?: metadata["xbVars"] ?: metadata["variables"]
             return toStringMap(raw)
         }
 
@@ -1081,6 +1095,19 @@ class HttpChatRepository
                         ),
                     )
                 }
+            }
+        }
+
+        private suspend fun updateMessageMetadata(
+            serverMessageId: String,
+            patch: Map<String, Any>,
+        ) {
+            withContext(Dispatchers.IO) {
+                val existing = messageDao.getByServerId(serverMessageId) ?: return@withContext
+                val current = decodeMetadata(existing.metadataJson) ?: emptyMap()
+                val merged = current.toMutableMap().apply { putAll(patch) }
+                val metadataJson = encodeMetadata(merged)
+                messageDao.upsert(existing.copy(metadataJson = metadataJson))
             }
         }
 

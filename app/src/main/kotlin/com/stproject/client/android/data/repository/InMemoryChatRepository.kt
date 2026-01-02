@@ -140,6 +140,18 @@ class InMemoryChatRepository
             sessionVariables = variables
         }
 
+        override suspend fun updateMessageVariables(
+            messageId: String,
+            swipesData: List<Map<String, Any>>,
+        ) {
+            _messages.value =
+                _messages.value.map { message ->
+                    if (message.id != messageId) return@map message
+                    val nextMetadata = (message.metadata ?: emptyMap()) + mapOf("swipes_data" to swipesData)
+                    message.copy(metadata = nextMetadata)
+                }
+        }
+
         override suspend fun clearLocalSession() {
             _messages.value = emptyList()
         }

@@ -1,8 +1,11 @@
 package com.stproject.client.android.features.chat
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -386,17 +389,36 @@ private fun renderColumn(
     depth: Int,
     visited: MutableSet<String>,
 ) {
-    val children = parseChildren(component.props)
+    val childrenSpec = parseChildrenSpec(component.props) ?: return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        children.forEach { id ->
-            A2UINodeView(
-                componentId = id,
-                surface = surface,
-                onAction = onAction,
-                isBusy = isBusy,
-                depth = depth + 1,
-                visited = visited,
-            )
+        when (childrenSpec) {
+            is ChildrenSpec.Explicit -> {
+                childrenSpec.ids.forEach { id ->
+                    renderChildWithWeight(
+                        componentId = id,
+                        surface = surface,
+                        dataModelOverride = null,
+                        onAction = onAction,
+                        isBusy = isBusy,
+                        depth = depth + 1,
+                        visited = visited,
+                    )
+                }
+            }
+            is ChildrenSpec.Template -> {
+                val items = resolveTemplateItems(childrenSpec, surface.dataModel)
+                items.forEach { item ->
+                    renderChildWithWeight(
+                        componentId = childrenSpec.componentId,
+                        surface = surface,
+                        dataModelOverride = templateItemDataModel(item),
+                        onAction = onAction,
+                        isBusy = isBusy,
+                        depth = depth + 1,
+                        visited = visited,
+                    )
+                }
+            }
         }
     }
 }
@@ -410,20 +432,39 @@ private fun renderRow(
     depth: Int,
     visited: MutableSet<String>,
 ) {
-    val children = parseChildren(component.props)
+    val childrenSpec = parseChildrenSpec(component.props) ?: return
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        children.forEach { id ->
-            A2UINodeView(
-                componentId = id,
-                surface = surface,
-                onAction = onAction,
-                isBusy = isBusy,
-                depth = depth + 1,
-                visited = visited,
-            )
+        when (childrenSpec) {
+            is ChildrenSpec.Explicit -> {
+                childrenSpec.ids.forEach { id ->
+                    renderChildWithWeight(
+                        componentId = id,
+                        surface = surface,
+                        dataModelOverride = null,
+                        onAction = onAction,
+                        isBusy = isBusy,
+                        depth = depth + 1,
+                        visited = visited,
+                    )
+                }
+            }
+            is ChildrenSpec.Template -> {
+                val items = resolveTemplateItems(childrenSpec, surface.dataModel)
+                items.forEach { item ->
+                    renderChildWithWeight(
+                        componentId = childrenSpec.componentId,
+                        surface = surface,
+                        dataModelOverride = templateItemDataModel(item),
+                        onAction = onAction,
+                        isBusy = isBusy,
+                        depth = depth + 1,
+                        visited = visited,
+                    )
+                }
+            }
         }
     }
 }
@@ -480,11 +521,128 @@ private fun buildActionContext(
     return context
 }
 
-private fun parseChildren(props: JsonObject): List<String> {
-    val children = props.getAsJsonObject("children") ?: return emptyList()
+private sealed class ChildrenSpec {
+    data class Explicit(val ids: List<String>) : ChildrenSpec()
+
+    data class Template(
+        val dataBinding: String,
+        val componentId: String,
+    ) : ChildrenSpec()
+}
+
+private fun parseChildrenSpec(props: JsonObject): ChildrenSpec? {
+    val children = props.getAsJsonObject("children") ?: return null
+    val explicit = parseExplicitChildren(children)
+    if (explicit.isNotEmpty()) {
+        return ChildrenSpec.Explicit(explicit)
+    }
+    val template = children.getAsJsonObject("template") ?: return null
+    val dataBinding = template.readString("dataBinding")?.trim().orEmpty()
+    val componentId = template.readString("componentId")?.trim().orEmpty()
+    if (dataBinding.isEmpty() || componentId.isEmpty()) return null
+    return ChildrenSpec.Template(dataBinding = dataBinding, componentId = componentId)
+}
+
+private fun parseExplicitChildren(children: JsonObject): List<String> {
     val list = children.getAsJsonArray("explicitList") ?: return emptyList()
     return list.mapNotNull { runCatching { it.asString.trim() }.getOrNull() }
         .filter { it.isNotEmpty() }
+}
+
+private fun resolveTemplateItems(
+    spec: ChildrenSpec.Template,
+    dataModel: Map<String, Any?>,
+): List<Any?> {
+    val binding = JsonObject().apply { addProperty("path", spec.dataBinding) }
+    val resolved = A2UIBindingResolver.resolveValue(binding, dataModel)
+    val list = resolved as? List<*> ?: return emptyList()
+    return list.filterNotNull()
+}
+
+private fun templateItemDataModel(item: Any?): Map<String, Any?> {
+    return when (item) {
+        is Map<*, *> -> item.entries.associate { it.key.toString() to it.value }
+        else -> mapOf("value" to item)
+    }
+}
+
+private fun componentWeight(
+    surface: A2UISurfaceState,
+    componentId: String,
+): Float? {
+    val weight = surface.components[componentId]?.weight ?: return null
+    val floatWeight = weight.toFloat()
+    return floatWeight.takeIf { it > 0f }
+}
+
+@Composable
+private fun ColumnScope.renderChildWithWeight(
+    componentId: String,
+    surface: A2UISurfaceState,
+    dataModelOverride: Map<String, Any?>?,
+    onAction: (A2UIAction) -> Unit,
+    isBusy: Boolean,
+    depth: Int,
+    visited: MutableSet<String>,
+) {
+    val weight = componentWeight(surface, componentId)
+    val childSurface = dataModelOverride?.let { surface.copy(dataModel = it) } ?: surface
+    if (weight != null) {
+        Box(modifier = Modifier.weight(weight)) {
+            A2UINodeView(
+                componentId = componentId,
+                surface = childSurface,
+                onAction = onAction,
+                isBusy = isBusy,
+                depth = depth,
+                visited = visited,
+            )
+        }
+    } else {
+        A2UINodeView(
+            componentId = componentId,
+            surface = childSurface,
+            onAction = onAction,
+            isBusy = isBusy,
+            depth = depth,
+            visited = visited,
+        )
+    }
+}
+
+@Composable
+private fun RowScope.renderChildWithWeight(
+    componentId: String,
+    surface: A2UISurfaceState,
+    dataModelOverride: Map<String, Any?>?,
+    onAction: (A2UIAction) -> Unit,
+    isBusy: Boolean,
+    depth: Int,
+    visited: MutableSet<String>,
+) {
+    val weight = componentWeight(surface, componentId)
+    val childSurface = dataModelOverride?.let { surface.copy(dataModel = it) } ?: surface
+    if (weight != null) {
+        Box(modifier = Modifier.weight(weight)) {
+            A2UINodeView(
+                componentId = componentId,
+                surface = childSurface,
+                onAction = onAction,
+                isBusy = isBusy,
+                depth = depth,
+                visited = visited,
+            )
+        }
+    } else {
+        A2UINodeView(
+            componentId = componentId,
+            surface = childSurface,
+            onAction = onAction,
+            isBusy = isBusy,
+            depth = depth,
+            visited = visited,
+        )
+    }
 }
 
 private data class Choice(

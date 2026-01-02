@@ -38,6 +38,7 @@ class CharacterDetailViewModel
                         resolveContentAccess.execute(
                             memberId = characterId,
                             isNsfwHint = detail.isNsfw,
+                            ageRatingHint = detail.moderationAgeRating,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
@@ -66,6 +67,7 @@ class CharacterDetailViewModel
                         resolveContentAccess.execute(
                             memberId = characterId,
                             isNsfwHint = _uiState.value.detail?.isNsfw,
+                            ageRatingHint = _uiState.value.detail?.moderationAgeRating,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update { it.copy(error = access.userMessage()) }
@@ -95,6 +97,7 @@ class CharacterDetailViewModel
                             cleanId,
                             _uiState.value.detail?.isNsfw,
                             value,
+                            ageRatingHint = _uiState.value.detail?.moderationAgeRating,
                         )
                     if (result is GuardedActionResult.Blocked) {
                         _uiState.update { it.copy(error = result.decision.userMessage()) }

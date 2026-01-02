@@ -11,6 +11,7 @@ import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.core.session.ChatSessionStore
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.A2UIAction
 import com.stproject.client.android.domain.model.ChatRole
 import com.stproject.client.android.domain.model.ShareCodeInfo
@@ -19,6 +20,7 @@ import com.stproject.client.android.domain.repository.ChatRepository
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import com.stproject.client.android.domain.usecase.SendUserMessageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,10 +47,28 @@ class ChatViewModel
         private val isActionRunning = MutableStateFlow(false)
         private val shareInfo = MutableStateFlow<ShareCodeInfo?>(null)
         private val activeCharacterIsNsfw = MutableStateFlow<Boolean?>(null)
+        private val activeCharacterAgeRating = MutableStateFlow<AgeRating?>(null)
+        private val accessError = MutableStateFlow<String?>(null)
         private val error = MutableStateFlow<String?>(null)
         private val variablesState = MutableStateFlow(ChatVariablesUiState())
 
         val uiState: StateFlow<ChatUiState> =
+            combine(
+                baseStateFlow(),
+                activeCharacterIsNsfw,
+                activeCharacterAgeRating,
+                accessError,
+                error,
+            ) { state, isNsfw, ageRating, accessErrorText, errorText ->
+                state.copy(
+                    activeCharacterIsNsfw = isNsfw,
+                    activeCharacterAgeRating = ageRating,
+                    accessError = accessErrorText,
+                    error = errorText,
+                )
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
+
+        private fun baseStateFlow(): Flow<ChatUiState> =
             combine(
                 chatRepository.messages,
                 input,
@@ -63,13 +83,10 @@ class ChatViewModel
                     isActionRunning = actionRunning,
                     shareInfo = share,
                     activeCharacterIsNsfw = null,
+                    accessError = null,
                     error = null,
                 )
-            }.combine(activeCharacterIsNsfw) { state, isNsfw ->
-                state.copy(activeCharacterIsNsfw = isNsfw)
-            }.combine(error) { state, errorText ->
-                state.copy(error = errorText)
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
+            }
 
         val variablesUiState: StateFlow<ChatVariablesUiState> =
             variablesState.stateIn(
@@ -100,6 +117,7 @@ class ChatViewModel
 
             viewModelScope.launch {
                 try {
+                    if (!ensureSessionAccess()) return@launch
                     sendUserMessage(content)
                     input.value = ""
                 } catch (e: ApiException) {
@@ -123,12 +141,38 @@ class ChatViewModel
             }
         }
 
+        fun refreshAccessForActiveSession() {
+            viewModelScope.launch {
+                val memberId = chatSessionStore.getPrimaryMemberId()?.trim().orEmpty()
+                if (memberId.isEmpty()) {
+                    accessError.value = null
+                    return@launch
+                }
+                val access =
+                    resolveContentAccess.execute(
+                        memberId,
+                        activeCharacterIsNsfw.value,
+                        ageRatingHint = activeCharacterAgeRating.value,
+                    )
+                if (access is ContentAccessDecision.Blocked) {
+                    handleAccessBlocked(access)
+                    return@launch
+                }
+                accessError.value = null
+                if (activeCharacterIsNsfw.value == null || activeCharacterAgeRating.value == null) {
+                    resolveCharacterNsfw(memberId)
+                }
+            }
+        }
+
         fun startNewChat(
             memberId: String,
             shareCode: String? = null,
             onSuccess: (() -> Unit)? = null,
         ) {
             activeCharacterIsNsfw.value = null
+            activeCharacterAgeRating.value = null
+            accessError.value = null
             viewModelScope.launch {
                 try {
                     val access = resolveContentAccess.execute(memberId, null)
@@ -155,6 +199,8 @@ class ChatViewModel
             onSuccess: (() -> Unit)? = null,
         ) {
             activeCharacterIsNsfw.value = null
+            activeCharacterAgeRating.value = null
+            accessError.value = null
             viewModelScope.launch {
                 try {
                     val access = resolveContentAccess.execute(primaryMemberId, null)
@@ -399,6 +445,7 @@ class ChatViewModel
             error.value = null
             viewModelScope.launch {
                 try {
+                    if (!ensureSessionAccess()) return@launch
                     block()
                 } catch (e: ApiException) {
                     error.value = e.userMessage ?: e.message
@@ -411,21 +458,48 @@ class ChatViewModel
             }
         }
 
+        private suspend fun ensureSessionAccess(): Boolean {
+            val memberId = chatSessionStore.getPrimaryMemberId()?.trim().orEmpty()
+            val access =
+                resolveContentAccess.execute(
+                    memberId.takeIf { it.isNotEmpty() },
+                    activeCharacterIsNsfw.value,
+                    ageRatingHint = activeCharacterAgeRating.value,
+                )
+            if (access is ContentAccessDecision.Blocked) {
+                handleAccessBlocked(access)
+                return false
+            }
+            accessError.value = null
+            if (memberId.isNotEmpty() &&
+                (activeCharacterIsNsfw.value == null || activeCharacterAgeRating.value == null)
+            ) {
+                resolveCharacterNsfw(memberId)
+            }
+            return true
+        }
+
         private fun handleAccessBlocked(access: ContentAccessDecision.Blocked) {
-            error.value = access.userMessage()
+            val message = access.userMessage()
+            accessError.value = message
+            error.value = message
         }
 
         private suspend fun resolveCharacterNsfw(memberId: String?) {
             val clean = memberId?.trim()?.takeIf { it.isNotEmpty() }
             if (clean == null) {
                 activeCharacterIsNsfw.value = null
+                activeCharacterAgeRating.value = null
                 return
             }
             try {
-                activeCharacterIsNsfw.value = characterRepository.getCharacterDetail(clean).isNsfw
+                val detail = characterRepository.getCharacterDetail(clean)
+                activeCharacterIsNsfw.value = detail.isNsfw
+                activeCharacterAgeRating.value = detail.moderationAgeRating
             } catch (e: Exception) {
                 e.rethrowIfCancellation()
                 activeCharacterIsNsfw.value = null
+                activeCharacterAgeRating.value = null
             }
         }
     }

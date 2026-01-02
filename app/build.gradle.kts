@@ -53,6 +53,7 @@ android {
             buildConfigField("String", "DEFAULT_CHARACTER_ID", "\"$defaultCharacterId\"")
             buildConfigField("String", "PRIVACY_URL", "\"$privacyUrl\"")
             buildConfigField("String", "TERMS_URL", "\"$termsUrl\"")
+            buildConfigField("boolean", "PLAY_BUILD", "false")
         }
         release {
             isMinifyEnabled = true
@@ -77,6 +78,7 @@ android {
             buildConfigField("String", "DEFAULT_CHARACTER_ID", "\"$defaultCharacterId\"")
             buildConfigField("String", "PRIVACY_URL", "\"$privacyUrl\"")
             buildConfigField("String", "TERMS_URL", "\"$termsUrl\"")
+            buildConfigField("boolean", "PLAY_BUILD", "true")
         }
     }
     compileOptions {
