@@ -13,9 +13,12 @@ import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentAccessManager
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.preferences.UserPreferencesStore
 import com.stproject.client.android.core.session.ChatSessionStore
 import com.stproject.client.android.domain.model.A2UIAction
 import com.stproject.client.android.domain.model.A2UIActionResult
+import com.stproject.client.android.domain.model.CardCreateInput
+import com.stproject.client.android.domain.model.CardCreateResult
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
@@ -23,6 +26,7 @@ import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatSessionSummary
 import com.stproject.client.android.domain.model.ReportReasonMeta
 import com.stproject.client.android.domain.model.ShareCodeInfo
+import com.stproject.client.android.domain.repository.CardRepository
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.ChatRepository
 import com.stproject.client.android.domain.repository.ReportRepository
@@ -333,7 +337,9 @@ class NsfwGatingTest {
                 chatRepository = chatRepo,
                 sendUserMessage = SendUserMessageUseCase(chatRepo),
                 characterRepository = characterRepo,
+                cardRepository = FakeCardRepository(),
                 chatSessionStore = FakeChatSessionStore(),
+                userPreferencesStore = FakeUserPreferencesStore(),
                 resolveContentAccess =
                     ResolveContentAccessUseCase(
                         accessManager = AllowAllAccessManager(),
@@ -443,6 +449,11 @@ private class FakeChatRepository(
 
     override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
 
+    override suspend fun updateMessageVariables(
+        messageId: String,
+        swipesData: List<Map<String, Any>>,
+    ) = Unit
+
     override suspend fun clearLocalSession() {
         _messages.value = emptyList()
     }
@@ -502,6 +513,99 @@ private class FakeReportRepository : ReportRepository {
         detail: String?,
         sessionId: String?,
     ) = Unit
+}
+
+private class FakeUserPreferencesStore : UserPreferencesStore {
+    private var nsfwAllowed = false
+    private var themeMode = com.stproject.client.android.core.theme.ThemeMode.System
+    private var languageTag: String? = null
+    private var presetId: String? = null
+    private var globalVariables: Map<String, Any> = emptyMap()
+    private val presetVariables = mutableMapOf<String, Map<String, Any>>()
+
+    override fun isNsfwAllowed(): Boolean = nsfwAllowed
+
+    override fun setNsfwAllowed(value: Boolean) {
+        nsfwAllowed = value
+    }
+
+    override fun getThemeMode(): com.stproject.client.android.core.theme.ThemeMode = themeMode
+
+    override fun setThemeMode(mode: com.stproject.client.android.core.theme.ThemeMode) {
+        themeMode = mode
+    }
+
+    override fun getLanguageTag(): String? = languageTag
+
+    override fun setLanguageTag(tag: String?) {
+        languageTag = tag
+    }
+
+    override fun getModelPresetId(): String? = presetId
+
+    override fun setModelPresetId(presetId: String?) {
+        this.presetId = presetId
+    }
+
+    override fun getGlobalVariables(): Map<String, Any> = globalVariables
+
+    override fun setGlobalVariables(variables: Map<String, Any>) {
+        globalVariables = variables
+    }
+
+    override fun getPresetVariables(presetId: String): Map<String, Any> {
+        return presetVariables[presetId] ?: emptyMap()
+    }
+
+    override fun setPresetVariables(
+        presetId: String,
+        variables: Map<String, Any>,
+    ) {
+        presetVariables[presetId] = variables
+    }
+}
+
+private class FakeCardRepository : CardRepository {
+    override suspend fun createCard(input: CardCreateInput): CardCreateResult {
+        return CardCreateResult(characterId = "char-1", name = input.name)
+    }
+
+    override suspend fun createCardFromWrapper(wrapper: Map<String, Any>): CardCreateResult {
+        return CardCreateResult(characterId = "char-1", name = null)
+    }
+
+    override suspend fun updateCardFromWrapper(
+        id: String,
+        wrapper: Map<String, Any>,
+    ): CardCreateResult {
+        return CardCreateResult(characterId = id, name = null)
+    }
+
+    override suspend fun fetchCardWrapper(id: String): Map<String, Any> {
+        return emptyMap()
+    }
+
+    override suspend fun fetchExportPng(id: String): ByteArray {
+        return ByteArray(0)
+    }
+
+    override suspend fun parseCardFile(
+        fileName: String,
+        bytes: ByteArray,
+    ): Map<String, Any> {
+        return emptyMap()
+    }
+
+    override suspend fun parseCardText(
+        content: String,
+        fileName: String?,
+    ): Map<String, Any> {
+        return emptyMap()
+    }
+
+    override suspend fun fetchTemplate(): Map<String, Any> {
+        return emptyMap()
+    }
 }
 
 private class FakeChatSessionStore : ChatSessionStore {

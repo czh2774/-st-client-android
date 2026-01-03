@@ -1,5 +1,6 @@
 package com.stproject.client.android.core.network
 
+import com.google.gson.annotations.SerializedName
 data class DialogDeleteRequestDto(
     val messageId: String,
     val sessionId: String,
@@ -38,6 +39,8 @@ data class DialogStreamRequestDto(
     val persistMode: String = "sync",
     val worldInfoMinActivations: Int? = null,
     val worldInfoMinActivationsDepthMax: Int? = null,
+    @SerializedName("global_variables")
+    val globalVariables: Map<String, Any>? = null,
 )
 
 data class DialogVariablesRequestDto(

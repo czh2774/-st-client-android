@@ -186,6 +186,8 @@ class MainActivity : ComponentActivity() {
                             shopViewModel = shopViewModel,
                             walletViewModel = walletViewModel,
                             modelPresetsViewModel = modelPresetsViewModel,
+                            backgroundsViewModel = backgroundsViewModel,
+                            decorationsViewModel = decorationsViewModel,
                             complianceState = complianceState,
                             commentsViewModel = commentsViewModel,
                             onLogout = authViewModel::onLogout,
@@ -229,6 +231,8 @@ private fun AuthenticatedContent(
     shopViewModel: ShopViewModel,
     walletViewModel: WalletViewModel,
     modelPresetsViewModel: ModelPresetsViewModel,
+    backgroundsViewModel: BackgroundsViewModel,
+    decorationsViewModel: DecorationsViewModel,
     commentsViewModel: CommentsViewModel,
     complianceState: com.stproject.client.android.features.settings.ComplianceUiState,
     onLogout: () -> Unit,
@@ -523,12 +527,27 @@ private fun AuthenticatedContent(
                             onThemeModeChanged = complianceViewModel::setThemeMode,
                             onLanguageTagChanged = complianceViewModel::setLanguageTag,
                             onOpenModelPresets = { navController.navigate(MODEL_PRESETS_ROUTE) },
+                            onOpenBackgrounds = { navController.navigate(SETTINGS_BACKGROUNDS_ROUTE) },
+                            onOpenDecorations = { navController.navigate(SETTINGS_DECORATIONS_ROUTE) },
                         )
                     }
                     composable(MODEL_PRESETS_ROUTE) {
                         ModelPresetsScreen(
                             viewModel = modelPresetsViewModel,
                             onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable(SETTINGS_BACKGROUNDS_ROUTE) {
+                        BackgroundsScreen(
+                            viewModel = backgroundsViewModel,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable(SETTINGS_DECORATIONS_ROUTE) {
+                        DecorationsScreen(
+                            viewModel = decorationsViewModel,
+                            onBack = { navController.popBackStack() },
+                            onOpenShop = { navigateTo(MainTab.Shop) },
                         )
                     }
                     composable(WORLDINFO_ROUTE) {

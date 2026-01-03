@@ -7,7 +7,7 @@ architecture, and test coverage. Source of truth: local codebase only.
 
 - Android is a partial implementation of the React client. Core chat + explore exist,
   but major product areas are still missing (red packet, fan badges,
-  creator tooling completeness, personas/masks/extensions, and rich settings).
+  creator tooling completeness, personas/masks/extensions, and settings customization gaps).
 - Compliance foundations exist (age verification, privacy/terms consent, reporting,
   blocking). NSFW gating now covers core entry points and syncs server blocked-tags,
   with centralized access policy and chat entry enforcement. UI-level gating
@@ -57,7 +57,7 @@ Legend: DONE / PARTIAL / MISSING
 - Wallet + transactions: React DONE, Android PARTIAL (read-only balance + transactions list)
 
 ### Settings / Customization
-- Theme/language/backgrounds/decorations: React DONE, Android MISSING
+- Theme/language/backgrounds/decorations: React DONE, Android PARTIAL (theme/language local only; backgrounds/decorations done)
 - Model presets: React DONE, Android PARTIAL (selection only)
 - Privacy/terms links: React DONE, Android DONE
 - Age verification + user config sync: React DONE, Android DONE (self-entry)

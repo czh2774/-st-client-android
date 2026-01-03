@@ -2,6 +2,7 @@ package com.stproject.client.android.core.a2ui
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
+import timber.log.Timber
 
 data class A2UIComponent(
     val id: String,
@@ -33,6 +34,11 @@ object A2UIRuntimeReducer {
         state: A2UIRuntimeState,
         message: A2UIMessage,
     ): A2UIRuntimeState {
+        val actionCount = countActions(message)
+        if (actionCount != 1) {
+            Timber.w("A2UI message must contain exactly one action, got %d", actionCount)
+            return state
+        }
         val surfaces = state.surfaces.toMutableMap()
 
         message.deleteSurface?.surfaceId?.trim()?.takeIf { it.isNotEmpty() }?.let { surfaceId ->
@@ -56,6 +62,8 @@ object A2UIRuntimeReducer {
             val surfaceId = begin.surfaceId?.trim().orEmpty()
             if (surfaceId.isNotEmpty()) {
                 val current = surfaces[surfaceId] ?: A2UISurfaceState(surfaceId = surfaceId)
+                logCatalogIdIfNeeded(current, begin)
+                logStylesIfNeeded(current, begin)
                 surfaces[surfaceId] =
                     current.copy(
                         rootId = begin.root?.trim()?.takeIf { it.isNotEmpty() },
@@ -87,8 +95,17 @@ object A2UIRuntimeReducer {
         for (definition in components) {
             val componentId = definition.id?.trim().orEmpty()
             val componentObj = definition.component ?: continue
-            if (componentId.isEmpty() || componentObj.entrySet().isEmpty()) continue
-            val entry = componentObj.entrySet().first()
+            val entries = componentObj.entrySet()
+            if (componentId.isEmpty() || entries.isEmpty()) continue
+            if (entries.size != 1) {
+                Timber.w(
+                    "A2UI component must contain exactly one type key (id=%s size=%d)",
+                    componentId,
+                    entries.size,
+                )
+                continue
+            }
+            val entry = entries.first()
             val type = entry.key
             val props = entry.value.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
             nextComponents[componentId] =
@@ -217,6 +234,36 @@ object A2UIRuntimeReducer {
             }
         }
         return current
+    }
+
+    private fun countActions(message: A2UIMessage): Int {
+        var count = 0
+        if (message.beginRendering != null) count++
+        if (message.surfaceUpdate != null) count++
+        if (message.dataModelUpdate != null) count++
+        if (message.deleteSurface != null) count++
+        return count
+    }
+
+    private fun logCatalogIdIfNeeded(
+        current: A2UISurfaceState,
+        begin: A2UIBeginRendering,
+    ) {
+        val nextCatalog = begin.catalogId?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        val currentCatalog = current.catalogId?.trim().orEmpty()
+        if (nextCatalog != currentCatalog) {
+            Timber.i("A2UI catalogId=%s", nextCatalog)
+        }
+    }
+
+    private fun logStylesIfNeeded(
+        current: A2UISurfaceState,
+        begin: A2UIBeginRendering,
+    ) {
+        if (begin.styles?.entrySet()?.isNotEmpty() != true) return
+        if (current.styles == null || current.styles.entrySet().isEmpty()) {
+            Timber.i("A2UI styles received (%d entries)", begin.styles.entrySet().size)
+        }
     }
 }
 

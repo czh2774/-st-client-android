@@ -24,6 +24,8 @@ class ModelPresetsViewModelTest : BaseUnitTest() {
         private var themeMode = ThemeMode.System
         private var languageTag: String? = null
         private var modelPresetId: String? = null
+        private var globalVariables: Map<String, Any> = emptyMap()
+        private val presetVariables = mutableMapOf<String, Map<String, Any>>()
 
         override fun isNsfwAllowed(): Boolean = nsfwAllowed
 
@@ -47,6 +49,23 @@ class ModelPresetsViewModelTest : BaseUnitTest() {
 
         override fun setModelPresetId(presetId: String?) {
             modelPresetId = presetId
+        }
+
+        override fun getGlobalVariables(): Map<String, Any> = globalVariables
+
+        override fun setGlobalVariables(variables: Map<String, Any>) {
+            globalVariables = variables
+        }
+
+        override fun getPresetVariables(presetId: String): Map<String, Any> {
+            return presetVariables[presetId] ?: emptyMap()
+        }
+
+        override fun setPresetVariables(
+            presetId: String,
+            variables: Map<String, Any>,
+        ) {
+            presetVariables[presetId] = variables
         }
     }
 

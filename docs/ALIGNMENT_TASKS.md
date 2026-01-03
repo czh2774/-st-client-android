@@ -39,7 +39,7 @@ Play compliance plan:
 - [ ] Red packet
 - [ ] Personas + masks + extensions
 - [x] Comments (basic list/create/like/delete/replies)
-- [ ] Settings parity: backgrounds, decorations (model presets partial)
+- [x] Settings parity: backgrounds, decorations (model presets partial)
 
 ## P2 UX and Platform
 - [ ] Compose Navigation graph + deep links + state restoration (top-level tabs + chat/detail/creator/assistant routes moved to NavHost; remaining nested flows pending).

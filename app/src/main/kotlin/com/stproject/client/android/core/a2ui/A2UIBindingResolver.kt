@@ -4,6 +4,8 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 
 object A2UIBindingResolver {
+    internal const val TEMPLATE_ITEM_KEY = "__a2ui_item"
+
     fun resolveValue(
         value: JsonElement?,
         dataModel: Map<String, Any?>,
@@ -82,9 +84,15 @@ object A2UIBindingResolver {
         rawPath: String,
         dataModel: Map<String, Any?>,
     ): Any? {
+        val isAbsolute = rawPath.trim().startsWith("/")
         val segments = parsePathSegments(rawPath)
         if (segments.isEmpty()) return null
-        var current: Any? = dataModel
+        var current: Any? =
+            if (!isAbsolute) {
+                dataModel[TEMPLATE_ITEM_KEY] ?: dataModel
+            } else {
+                dataModel
+            }
         for (segment in segments) {
             current =
                 when (current) {
@@ -106,6 +114,12 @@ object A2UIBindingResolver {
         obj.readDouble("valueNumber")?.let { return it }
         obj.readBoolean("literalBoolean")?.let { return it }
         obj.readBoolean("valueBoolean")?.let { return it }
+        obj.getAsJsonArray("literalArray")?.let { array ->
+            return array.map { parseJsonElement(it) }
+        }
+        obj.getAsJsonArray("valueList")?.let { array ->
+            return array.map { parseJsonElement(it) }
+        }
         return null
     }
 
@@ -114,9 +128,27 @@ object A2UIBindingResolver {
         path: String,
         value: Any,
     ) {
-        val root = dataModel as? MutableMap<String, Any?> ?: return
+        val isAbsolute = path.trim().startsWith("/")
         val segments = parsePathSegments(path)
         if (segments.isEmpty()) return
+        @Suppress("UNCHECKED_CAST")
+        val container = dataModel as? MutableMap<String, Any?> ?: return
+        val root =
+            if (!isAbsolute) {
+                val item = container[TEMPLATE_ITEM_KEY]
+                val itemMap =
+                    when (item) {
+                        is MutableMap<*, *> -> mapToMutableStringMap(item)
+                        is Map<*, *> -> mapToMutableStringMap(item)
+                        else -> return
+                    }
+                if (item !is MutableMap<*, *>) {
+                    container[TEMPLATE_ITEM_KEY] = itemMap
+                }
+                itemMap
+            } else {
+                container
+            }
         val leaf = segments.last()
         var current: MutableMap<String, Any?> = root
         for (segment in segments.dropLast(1)) {
@@ -145,6 +177,33 @@ object A2UIBindingResolver {
         rawPath.split("/")
             .map { it.trim() }
             .filter { it.isNotEmpty() }
+
+    private fun parseJsonElement(element: JsonElement?): Any? {
+        if (element == null || element.isJsonNull) return null
+        if (element.isJsonPrimitive) {
+            val primitive = element.asJsonPrimitive
+            return when {
+                primitive.isBoolean -> primitive.asBoolean
+                primitive.isNumber -> primitive.asNumber.toDouble()
+                primitive.isString -> primitive.asString
+                else -> null
+            }
+        }
+        if (element.isJsonArray) {
+            return element.asJsonArray.map { parseJsonElement(it) }
+        }
+        if (element.isJsonObject) {
+            val mapped = mutableMapOf<String, Any?>()
+            for ((k, v) in element.asJsonObject.entrySet()) {
+                mapped[k] = parseJsonElement(v)
+            }
+            return mapped
+        }
+        return null
+    }
+
+    private fun mapToMutableStringMap(source: Map<*, *>): MutableMap<String, Any?> =
+        source.entries.associate { it.key.toString() to it.value }.toMutableMap()
 }
 
 private fun JsonObject.readString(key: String): String? =

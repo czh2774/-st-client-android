@@ -74,6 +74,12 @@ fun ChatScreen(
             !uiState.isActionRunning &&
             !uiState.isSending &&
             lastAssistant?.isStreaming != true
+    val isVariablesSaving =
+        variablesState.session.isSaving ||
+            variablesState.global.isSaving ||
+            variablesState.preset.isSaving ||
+            variablesState.character.isSaving ||
+            variablesState.message.isSaving
 
     LaunchedEffect(contentGate.nsfwAllowed) {
         viewModel.refreshAccessForActiveSession()
@@ -103,7 +109,7 @@ fun ChatScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(
                         onClick = { variablesOpen = true },
-                        enabled = !uiState.isActionRunning && !variablesState.isSaving,
+                        enabled = !uiState.isActionRunning && !isVariablesSaving,
                     ) {
                         Text(stringResource(R.string.chat_action_variables))
                     }
@@ -299,20 +305,74 @@ fun ChatScreen(
 
     LaunchedEffect(variablesOpen) {
         if (variablesOpen) {
-            viewModel.loadVariables()
+            viewModel.loadVariables(variablesState.activeScope, uiState.messages)
         }
     }
 
     if (variablesOpen) {
+        val activeScope = variablesState.activeScope
+        val activeEditor =
+            when (activeScope) {
+                VariablesScope.Session -> variablesState.session
+                VariablesScope.Global -> variablesState.global
+                VariablesScope.Preset -> variablesState.preset
+                VariablesScope.Character -> variablesState.character
+                VariablesScope.Message -> variablesState.message
+            }
+        val messageOptions = uiState.messages.filter { it.serverId != null }
+        val selectedMessage = messageOptions.firstOrNull { it.id == variablesState.selectedMessageId }
+        val scopeEnabled =
+            when (activeScope) {
+                VariablesScope.Preset -> variablesState.presetId != null
+                VariablesScope.Character -> variablesState.characterId != null
+                VariablesScope.Message -> selectedMessage != null
+                else -> true
+            }
+        val scopeHint =
+            when (activeScope) {
+                VariablesScope.Session -> R.string.chat_variables_hint_session
+                VariablesScope.Global -> R.string.chat_variables_hint_global
+                VariablesScope.Preset -> R.string.chat_variables_hint_preset
+                VariablesScope.Character -> R.string.chat_variables_hint_character
+                VariablesScope.Message -> R.string.chat_variables_hint_message
+            }
+        val scopeUnavailable =
+            when (activeScope) {
+                VariablesScope.Preset -> R.string.chat_variables_no_preset
+                VariablesScope.Character -> R.string.chat_variables_no_character
+                VariablesScope.Message -> R.string.chat_variables_message_empty
+                else -> null
+            }
+        var messageMenuOpen by remember { mutableStateOf(false) }
+
         AlertDialog(
             onDismissRequest = { variablesOpen = false },
             title = { Text(stringResource(R.string.chat_variables_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (variablesState.isLoading) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val scopeItems =
+                            listOf(
+                                VariablesScope.Session to R.string.chat_variables_scope_session,
+                                VariablesScope.Global to R.string.chat_variables_scope_global,
+                                VariablesScope.Preset to R.string.chat_variables_scope_preset,
+                                VariablesScope.Character to R.string.chat_variables_scope_character,
+                                VariablesScope.Message to R.string.chat_variables_scope_message,
+                            )
+                        scopeItems.forEach { (scope, labelRes) ->
+                            val isActive = scope == activeScope
+                            TextButton(
+                                onClick = { viewModel.setVariablesScope(scope, uiState.messages) },
+                                enabled = !isActive,
+                            ) {
+                                Text(stringResource(labelRes))
+                            }
+                        }
+                    }
+                    if (activeEditor.isLoading) {
                         Text(stringResource(R.string.chat_variables_loading))
                     }
-                    variablesState.error?.let { err ->
+                    activeEditor.error?.let { err ->
                         Text(
                             text =
                                 if (err == "invalid json") {
@@ -323,30 +383,78 @@ fun ChatScreen(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
+                    if (!scopeEnabled && scopeUnavailable != null) {
+                        Text(
+                            text = stringResource(scopeUnavailable),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (activeScope == VariablesScope.Message && messageOptions.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = stringResource(R.string.chat_variables_message_select),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Box {
+                                val selectedLabel =
+                                    selectedMessage?.let { msg ->
+                                        val index = uiState.messages.indexOf(msg).takeIf { it >= 0 } ?: 0
+                                        "#${index + 1} · ${msg.role.name.lowercase()}"
+                                    } ?: stringResource(R.string.chat_variables_message_select)
+                                TextButton(onClick = { messageMenuOpen = true }) {
+                                    Text(selectedLabel)
+                                }
+                                DropdownMenu(
+                                    expanded = messageMenuOpen,
+                                    onDismissRequest = { messageMenuOpen = false },
+                                ) {
+                                    messageOptions.forEach { message ->
+                                        val index = uiState.messages.indexOf(message).takeIf { it >= 0 } ?: 0
+                                        DropdownMenuItem(
+                                            text = {
+                                                Column {
+                                                    Text("#${index + 1} · ${message.role.name.lowercase()}")
+                                                    Text(
+                                                        text = message.content,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                messageMenuOpen = false
+                                                viewModel.selectMessageVariables(message.id, uiState.messages)
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     OutlinedTextField(
                         modifier = Modifier.fillMaxWidth(),
-                        value = variablesState.text,
-                        onValueChange = viewModel::updateVariablesText,
+                        value = activeEditor.text,
+                        onValueChange = { value -> viewModel.updateVariablesText(activeScope, value) },
                         label = { Text(stringResource(R.string.chat_variables_label)) },
-                        enabled = !variablesState.isLoading && !variablesState.isSaving,
+                        enabled = !activeEditor.isLoading && !activeEditor.isSaving && scopeEnabled,
                         minLines = 6,
                         maxLines = 12,
                     )
                     Text(
-                        text = stringResource(R.string.chat_variables_hint),
+                        text = stringResource(scopeHint),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
             },
             confirmButton = {
                 Button(
-                    onClick = viewModel::saveVariables,
+                    onClick = { viewModel.saveVariables(activeScope, uiState.messages) },
                     enabled =
-                        variablesState.isDirty &&
-                            !variablesState.isLoading &&
-                            !variablesState.isSaving,
+                        activeEditor.isDirty &&
+                            !activeEditor.isLoading &&
+                            !activeEditor.isSaving &&
+                            scopeEnabled,
                 ) {
-                    if (variablesState.isSaving) {
+                    if (activeEditor.isSaving) {
                         CircularProgressIndicator(
                             modifier = Modifier.padding(end = 8.dp),
                             strokeWidth = 2.dp,

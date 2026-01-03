@@ -16,4 +16,31 @@ class A2UIBindingResolverTest {
         assertEquals("Guest", user?.get("name"))
         assertEquals("Guest", resolved)
     }
+
+    @Test
+    fun `resolves relative paths against template item`() {
+        val dataModel =
+            mutableMapOf<String, Any?>(
+                "name" to "Parent",
+                A2UIBindingResolver.TEMPLATE_ITEM_KEY to mapOf("name" to "Item"),
+            )
+        val relative = JsonParser.parseString("""{"path":"name"}""")
+        val absolute = JsonParser.parseString("""{"path":"/name"}""")
+
+        val relativeValue = A2UIBindingResolver.resolveString(relative, dataModel)
+        val absoluteValue = A2UIBindingResolver.resolveString(absolute, dataModel)
+
+        assertEquals("Item", relativeValue)
+        assertEquals("Parent", absoluteValue)
+    }
+
+    @Test
+    fun `parses literalArray bound values`() {
+        val dataModel = emptyMap<String, Any?>()
+        val value = JsonParser.parseString("""{"literalArray":[1,"a",true]}""")
+
+        val resolved = A2UIBindingResolver.resolveValue(value, dataModel)
+
+        assertEquals(listOf(1.0, "a", true), resolved)
+    }
 }

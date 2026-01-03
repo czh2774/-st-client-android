@@ -10,11 +10,14 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.core.preferences.UserPreferencesStore
 import com.stproject.client.android.core.session.ChatSessionStore
 import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.A2UIAction
+import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatRole
 import com.stproject.client.android.domain.model.ShareCodeInfo
+import com.stproject.client.android.domain.repository.CardRepository
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.ChatRepository
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
@@ -37,7 +40,9 @@ class ChatViewModel
         private val chatRepository: ChatRepository,
         private val sendUserMessage: SendUserMessageUseCase,
         private val characterRepository: CharacterRepository,
+        private val cardRepository: CardRepository,
         private val chatSessionStore: ChatSessionStore,
+        private val userPreferencesStore: UserPreferencesStore,
         private val resolveContentAccess: ResolveContentAccessUseCase,
     ) : ViewModel() {
         private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
@@ -281,42 +286,183 @@ class ChatViewModel
             shareInfo.value = null
         }
 
-        fun loadVariables() {
-            if (variablesState.value.isLoading || variablesState.value.isSaving) return
-            variablesState.update { it.copy(isLoading = true, error = null) }
+        fun setVariablesScope(
+            scope: VariablesScope,
+            messages: List<ChatMessage>,
+        ) {
+            if (variablesState.value.activeScope == scope) return
+            variablesState.update { it.copy(activeScope = scope) }
+            loadVariables(scope, messages)
+        }
+
+        fun loadVariables(
+            scope: VariablesScope,
+            messages: List<ChatMessage>,
+        ) {
+            val editor = getEditorState(variablesState.value, scope)
+            if (editor.isLoading || editor.isSaving) return
+            updateEditorState(scope) { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val variables = chatRepository.loadSessionVariables()
-                    val text = gson.toJson(variables)
-                    variablesState.update {
-                        it.copy(
-                            text = text,
-                            isLoading = false,
-                            isDirty = false,
-                            error = null,
-                        )
+                    when (scope) {
+                        VariablesScope.Session -> {
+                            val variables = chatRepository.loadSessionVariables()
+                            val text = gson.toJson(variables)
+                            variablesState.update {
+                                it.copy(
+                                    session =
+                                        it.session.copy(
+                                            text = text,
+                                            isLoading = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
+                        VariablesScope.Global -> {
+                            val variables = userPreferencesStore.getGlobalVariables()
+                            val text = gson.toJson(variables)
+                            variablesState.update {
+                                it.copy(
+                                    global =
+                                        it.global.copy(
+                                            text = text,
+                                            isLoading = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
+                        VariablesScope.Preset -> {
+                            val presetId =
+                                userPreferencesStore.getModelPresetId()?.trim()?.takeIf { it.isNotEmpty() }
+                            val variables =
+                                if (presetId == null) {
+                                    emptyMap()
+                                } else {
+                                    userPreferencesStore.getPresetVariables(presetId)
+                                }
+                            val text = gson.toJson(variables)
+                            variablesState.update {
+                                it.copy(
+                                    presetId = presetId,
+                                    preset =
+                                        it.preset.copy(
+                                            text = text,
+                                            isLoading = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
+                        VariablesScope.Character -> {
+                            val characterId =
+                                chatSessionStore.getPrimaryMemberId()?.trim()?.takeIf { it.isNotEmpty() }
+                            if (characterId == null) {
+                                variablesState.update {
+                                    it.copy(
+                                        characterId = null,
+                                        character =
+                                            it.character.copy(
+                                                text = gson.toJson(emptyMap<String, Any>()),
+                                                isLoading = false,
+                                                isDirty = false,
+                                                error = null,
+                                            ),
+                                    )
+                                }
+                            } else {
+                                val wrapper = cardRepository.fetchCardWrapper(characterId)
+                                val variables = extractTavernHelperVariables(wrapper)
+                                val text = gson.toJson(variables)
+                                variablesState.update {
+                                    it.copy(
+                                        characterId = characterId,
+                                        character =
+                                            it.character.copy(
+                                                text = text,
+                                                isLoading = false,
+                                                isDirty = false,
+                                                error = null,
+                                            ),
+                                    )
+                                }
+                            }
+                        }
+                        VariablesScope.Message -> {
+                            val options = messages.filter { it.serverId != null }
+                            val selectedMessage =
+                                resolveSelectedMessage(
+                                    messages = options,
+                                    selectedId = variablesState.value.selectedMessageId,
+                                )
+                            val variables =
+                                selectedMessage?.let { readMessageVariables(it) } ?: emptyMap()
+                            val text = gson.toJson(variables)
+                            variablesState.update {
+                                it.copy(
+                                    selectedMessageId = selectedMessage?.id,
+                                    message =
+                                        it.message.copy(
+                                            text = text,
+                                            isLoading = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
                     }
                 } catch (e: ApiException) {
-                    variablesState.update {
-                        it.copy(
-                            isLoading = false,
-                            error = e.userMessage ?: e.message,
-                        )
+                    updateEditorState(scope) {
+                        it.copy(isLoading = false, error = e.userMessage ?: e.message)
                     }
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
-                    variablesState.update { it.copy(isLoading = false, error = "unexpected error") }
+                    updateEditorState(scope) { it.copy(isLoading = false, error = "unexpected error") }
                 }
             }
         }
 
-        fun updateVariablesText(value: String) {
-            variablesState.update { it.copy(text = value, isDirty = true) }
+        fun selectMessageVariables(
+            messageId: String,
+            messages: List<ChatMessage>,
+        ) {
+            val options = messages.filter { it.serverId != null }
+            val selected = options.firstOrNull { it.id == messageId }
+            val variables = selected?.let { readMessageVariables(it) } ?: emptyMap()
+            val text = gson.toJson(variables)
+            variablesState.update {
+                it.copy(
+                    selectedMessageId = selected?.id,
+                    message =
+                        it.message.copy(
+                            text = text,
+                            isLoading = false,
+                            isDirty = false,
+                            error = null,
+                        ),
+                )
+            }
         }
 
-        fun saveVariables() {
-            if (variablesState.value.isSaving) return
-            val raw = variablesState.value.text.trim()
+        fun updateVariablesText(
+            scope: VariablesScope,
+            value: String,
+        ) {
+            updateEditorState(scope) { it.copy(text = value, isDirty = true) }
+        }
+
+        fun saveVariables(
+            scope: VariablesScope,
+            messages: List<ChatMessage>,
+        ) {
+            val editor = getEditorState(variablesState.value, scope)
+            if (editor.isSaving) return
+            val raw = editor.text.trim()
             val parsed =
                 if (raw.isEmpty()) {
                     emptyMap()
@@ -324,36 +470,295 @@ class ChatViewModel
                     runCatching { gson.fromJson<Map<String, Any>>(raw, variablesType) }.getOrNull()
                 }
             if (parsed == null) {
-                variablesState.update {
-                    it.copy(error = "invalid json", isSaving = false)
-                }
+                updateEditorState(scope) { it.copy(error = "invalid json", isSaving = false) }
                 return
             }
-            variablesState.update { it.copy(isSaving = true, error = null) }
+            updateEditorState(scope) { it.copy(isSaving = true, error = null) }
             viewModelScope.launch {
                 try {
-                    chatRepository.updateSessionVariables(parsed)
-                    val text = gson.toJson(parsed)
-                    variablesState.update {
-                        it.copy(
-                            text = text,
-                            isSaving = false,
-                            isDirty = false,
-                            error = null,
-                        )
+                    when (scope) {
+                        VariablesScope.Session -> {
+                            chatRepository.updateSessionVariables(parsed)
+                            variablesState.update {
+                                it.copy(
+                                    session =
+                                        it.session.copy(
+                                            text = gson.toJson(parsed),
+                                            isSaving = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
+                        VariablesScope.Global -> {
+                            userPreferencesStore.setGlobalVariables(parsed)
+                            variablesState.update {
+                                it.copy(
+                                    global =
+                                        it.global.copy(
+                                            text = gson.toJson(parsed),
+                                            isSaving = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
+                        VariablesScope.Preset -> {
+                            val presetId =
+                                variablesState.value.presetId
+                                    ?: userPreferencesStore.getModelPresetId()?.trim()?.takeIf { it.isNotEmpty() }
+                            if (presetId == null) {
+                                updateEditorState(scope) {
+                                    it.copy(isSaving = false, error = "missing preset")
+                                }
+                                return@launch
+                            }
+                            userPreferencesStore.setPresetVariables(presetId, parsed)
+                            variablesState.update {
+                                it.copy(
+                                    presetId = presetId,
+                                    preset =
+                                        it.preset.copy(
+                                            text = gson.toJson(parsed),
+                                            isSaving = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
+                        VariablesScope.Character -> {
+                            val characterId =
+                                variablesState.value.characterId
+                                    ?: chatSessionStore.getPrimaryMemberId()?.trim()?.takeIf { it.isNotEmpty() }
+                            if (characterId == null) {
+                                updateEditorState(scope) {
+                                    it.copy(isSaving = false, error = "missing character")
+                                }
+                                return@launch
+                            }
+                            val wrapper = cardRepository.fetchCardWrapper(characterId)
+                            val updated = updateTavernHelperWrapper(wrapper, parsed)
+                            cardRepository.updateCardFromWrapper(characterId, updated)
+                            variablesState.update {
+                                it.copy(
+                                    characterId = characterId,
+                                    character =
+                                        it.character.copy(
+                                            text = gson.toJson(parsed),
+                                            isSaving = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
+                        VariablesScope.Message -> {
+                            val selectedId = variablesState.value.selectedMessageId
+                            val selected =
+                                messages.firstOrNull { it.id == selectedId && it.serverId != null }
+                            if (selected == null) {
+                                updateEditorState(scope) {
+                                    it.copy(isSaving = false, error = "message not ready")
+                                }
+                                return@launch
+                            }
+                            val swipesData = buildSwipesData(selected, parsed)
+                            chatRepository.updateMessageVariables(selected.id, swipesData)
+                            variablesState.update {
+                                it.copy(
+                                    message =
+                                        it.message.copy(
+                                            text = gson.toJson(parsed),
+                                            isSaving = false,
+                                            isDirty = false,
+                                            error = null,
+                                        ),
+                                )
+                            }
+                        }
                     }
                 } catch (e: ApiException) {
-                    variablesState.update {
-                        it.copy(
-                            isSaving = false,
-                            error = e.userMessage ?: e.message,
-                        )
+                    updateEditorState(scope) {
+                        it.copy(isSaving = false, error = e.userMessage ?: e.message)
                     }
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
-                    variablesState.update { it.copy(isSaving = false, error = "unexpected error") }
+                    updateEditorState(scope) { it.copy(isSaving = false, error = "unexpected error") }
                 }
             }
+        }
+
+        private fun getEditorState(
+            state: ChatVariablesUiState,
+            scope: VariablesScope,
+        ): VariablesEditorState =
+            when (scope) {
+                VariablesScope.Session -> state.session
+                VariablesScope.Global -> state.global
+                VariablesScope.Preset -> state.preset
+                VariablesScope.Character -> state.character
+                VariablesScope.Message -> state.message
+            }
+
+        private fun updateEditorState(
+            scope: VariablesScope,
+            updater: (VariablesEditorState) -> VariablesEditorState,
+        ) {
+            variablesState.update { state ->
+                when (scope) {
+                    VariablesScope.Session -> state.copy(session = updater(state.session))
+                    VariablesScope.Global -> state.copy(global = updater(state.global))
+                    VariablesScope.Preset -> state.copy(preset = updater(state.preset))
+                    VariablesScope.Character -> state.copy(character = updater(state.character))
+                    VariablesScope.Message -> state.copy(message = updater(state.message))
+                }
+            }
+        }
+
+        private fun resolveSelectedMessage(
+            messages: List<ChatMessage>,
+            selectedId: String?,
+        ): ChatMessage? {
+            if (messages.isEmpty()) return null
+            val current = selectedId?.let { id -> messages.firstOrNull { it.id == id } }
+            if (current != null) return current
+            val lastAssistant = messages.lastOrNull { it.role == ChatRole.Assistant }
+            return lastAssistant ?: messages.last()
+        }
+
+        private fun readMessageVariables(message: ChatMessage): Map<String, Any> {
+            val metadata = message.metadata ?: emptyMap()
+            val swipesData = metadata["swipes_data"] as? List<*>
+            if (!swipesData.isNullOrEmpty()) {
+                val idx =
+                    (message.swipeId ?: 0).coerceIn(0, swipesData.lastIndex.coerceAtLeast(0))
+                val entry = swipesData.getOrNull(idx)
+                return asStringKeyMap(entry)
+            }
+            return asStringKeyMap(metadata)
+        }
+
+        private fun buildSwipesData(
+            message: ChatMessage,
+            nextVars: Map<String, Any>,
+        ): List<Map<String, Any>> {
+            val swipeCount = message.swipes.size.takeIf { it > 0 } ?: 1
+            val swipeId = (message.swipeId ?: 0).coerceIn(0, swipeCount - 1)
+            val existing =
+                (message.metadata?.get("swipes_data") as? List<*>)?.map { asStringKeyMap(it) }
+                    ?: emptyList()
+            val swipes = existing.toMutableList()
+            while (swipes.size < swipeCount) {
+                swipes.add(emptyMap())
+            }
+            if (swipes.isEmpty()) {
+                swipes.add(emptyMap())
+            }
+            swipes[swipeId] = nextVars
+            return swipes
+        }
+
+        private fun extractTavernHelperVariables(wrapper: Map<String, Any>): Map<String, Any> {
+            val data = asStringKeyMap(wrapper["data"])
+            val extensions = asStringKeyMap(data["extensions"])
+            val tavernHelper = parseTavernHelperSettings(extensions["tavern_helper"]) ?: return emptyMap()
+            val vars =
+                tavernHelper["variables"]
+                    ?: tavernHelper["character_variables"]
+                    ?: tavernHelper["characterScriptVariables"]
+            return asStringKeyMap(vars)
+        }
+
+        private fun updateTavernHelperWrapper(
+            wrapper: Map<String, Any>,
+            nextVars: Map<String, Any>,
+        ): Map<String, Any> {
+            val data = asMutableStringKeyMap(wrapper["data"])
+            val extensions = asMutableStringKeyMap(data["extensions"])
+            val next = updateTavernHelperVariables(extensions["tavern_helper"], nextVars)
+            extensions["tavern_helper"] = next
+            data["extensions"] = extensions
+            return wrapper.toMutableMap().apply { this["data"] = data }
+        }
+
+        private fun updateTavernHelperVariables(
+            raw: Any?,
+            nextVars: Map<String, Any>,
+        ): Any {
+            if (raw is List<*>) {
+                var updated = false
+                val next =
+                    raw.map { entry ->
+                        if (entry is List<*> && entry.size >= 2) {
+                            val key = entry[0] as? String
+                            val trimmed = key?.trim().orEmpty()
+                            if (!updated &&
+                                (trimmed == "variables" ||
+                                    trimmed == "character_variables" ||
+                                    trimmed == "characterScriptVariables")
+                            ) {
+                                updated = true
+                                listOf(entry[0], nextVars)
+                            } else {
+                                entry
+                            }
+                        } else {
+                            entry
+                        }
+                    }.toMutableList()
+                if (!updated) {
+                    next.add(listOf("variables", nextVars))
+                }
+                return next
+            }
+            val base = asMutableStringKeyMap(raw)
+            when {
+                base.containsKey("variables") -> base["variables"] = nextVars
+                base.containsKey("character_variables") -> base["character_variables"] = nextVars
+                base.containsKey("characterScriptVariables") -> base["characterScriptVariables"] = nextVars
+                else -> base["variables"] = nextVars
+            }
+            return base
+        }
+
+        private fun parseTavernHelperSettings(value: Any?): Map<String, Any>? {
+            if (value is Map<*, *>) return asStringKeyMap(value)
+            if (value !is List<*>) return null
+            val out = mutableMapOf<String, Any>()
+            for (entry in value) {
+                if (entry !is List<*> || entry.size < 2) continue
+                val key = entry[0] as? String ?: continue
+                val trimmed = key.trim()
+                if (trimmed.isEmpty()) continue
+                val v = entry[1] ?: continue
+                out[trimmed] = v
+            }
+            return out.takeIf { it.isNotEmpty() }
+        }
+
+        private fun asStringKeyMap(value: Any?): Map<String, Any> {
+            if (value !is Map<*, *>) return emptyMap()
+            val out = mutableMapOf<String, Any>()
+            for ((key, v) in value) {
+                if (key is String && v != null) {
+                    out[key] = v
+                }
+            }
+            return out
+        }
+
+        private fun asMutableStringKeyMap(value: Any?): MutableMap<String, Any> {
+            val out = mutableMapOf<String, Any>()
+            if (value !is Map<*, *>) return out
+            for ((key, v) in value) {
+                if (key is String && v != null) {
+                    out[key] = v
+                }
+            }
+            return out
         }
 
         private fun handleA2UISend(action: A2UIAction) {

@@ -61,7 +61,7 @@ Deep link / share-code entry:
 | Terms acceptance | `/settings` | DONE | `POST users/accept-tos` |
 | Age verification / user config | `/settings` | DONE | `GET users/config`, `PUT users/config` |
 | Theme / language | `/theme_select`, `/language_select` | PARTIAL (local only) | no API |
-| Backgrounds / decorations / model presets | `/settings/*` | PARTIAL (model presets selection only) | `GET presets` |
+| Backgrounds / decorations / model presets | `/settings/*` | PARTIAL (backgrounds + decorations done; model presets selection only) | `GET backgrounds/all`, `POST backgrounds/upload`, `POST backgrounds/rename`, `POST backgrounds/delete`, `GET users/decorations`, `POST users/decorations/equip`, `GET presets` |
 
 ## Comments
 | Feature | React route | Android status | Android API |

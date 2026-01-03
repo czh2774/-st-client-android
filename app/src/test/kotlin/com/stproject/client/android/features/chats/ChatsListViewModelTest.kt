@@ -89,6 +89,11 @@ class ChatsListViewModelTest : BaseUnitTest() {
 
         override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
 
+        override suspend fun updateMessageVariables(
+            messageId: String,
+            swipesData: List<Map<String, Any>>,
+        ) = Unit
+
         override suspend fun clearLocalSession() = Unit
     }
 

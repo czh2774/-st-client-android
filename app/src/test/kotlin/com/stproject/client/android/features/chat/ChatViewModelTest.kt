@@ -9,15 +9,20 @@ import com.stproject.client.android.core.compliance.ContentAccessManager
 import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.core.preferences.UserPreferencesStore
 import com.stproject.client.android.core.session.ChatSessionStore
 import com.stproject.client.android.domain.model.A2UIAction
 import com.stproject.client.android.domain.model.A2UIActionResult
+import com.stproject.client.android.domain.model.CardCreateInput
+import com.stproject.client.android.domain.model.CardCreateResult
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
 import com.stproject.client.android.domain.model.ChatMessage
+import com.stproject.client.android.domain.model.ChatRole
 import com.stproject.client.android.domain.model.ChatSessionSummary
 import com.stproject.client.android.domain.model.ShareCodeInfo
+import com.stproject.client.android.domain.repository.CardRepository
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.ChatRepository
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
@@ -103,6 +108,104 @@ class ChatViewModelTest : BaseUnitTest() {
         override fun clear() = Unit
     }
 
+    private class FakeUserPreferencesStore : UserPreferencesStore {
+        private var nsfwAllowed = false
+        private var themeMode = com.stproject.client.android.core.theme.ThemeMode.System
+        private var languageTag: String? = null
+        private var presetId: String? = null
+        private var globalVariables: Map<String, Any> = emptyMap()
+        private val presetVariables = mutableMapOf<String, Map<String, Any>>()
+
+        override fun isNsfwAllowed(): Boolean = nsfwAllowed
+
+        override fun setNsfwAllowed(value: Boolean) {
+            nsfwAllowed = value
+        }
+
+        override fun getThemeMode(): com.stproject.client.android.core.theme.ThemeMode = themeMode
+
+        override fun setThemeMode(mode: com.stproject.client.android.core.theme.ThemeMode) {
+            themeMode = mode
+        }
+
+        override fun getLanguageTag(): String? = languageTag
+
+        override fun setLanguageTag(tag: String?) {
+            languageTag = tag
+        }
+
+        override fun getModelPresetId(): String? = presetId
+
+        override fun setModelPresetId(presetId: String?) {
+            this.presetId = presetId
+        }
+
+        override fun getGlobalVariables(): Map<String, Any> = globalVariables
+
+        override fun setGlobalVariables(variables: Map<String, Any>) {
+            globalVariables = variables
+        }
+
+        override fun getPresetVariables(presetId: String): Map<String, Any> {
+            return presetVariables[presetId] ?: emptyMap()
+        }
+
+        override fun setPresetVariables(
+            presetId: String,
+            variables: Map<String, Any>,
+        ) {
+            presetVariables[presetId] = variables
+        }
+    }
+
+    private class FakeCardRepository(
+        private val wrapper: Map<String, Any> = emptyMap(),
+    ) : CardRepository {
+        var updatedWrapper: Map<String, Any>? = null
+
+        override suspend fun createCard(input: CardCreateInput): CardCreateResult {
+            return CardCreateResult(characterId = "char-1", name = input.name)
+        }
+
+        override suspend fun createCardFromWrapper(wrapper: Map<String, Any>): CardCreateResult {
+            return CardCreateResult(characterId = "char-1", name = null)
+        }
+
+        override suspend fun updateCardFromWrapper(
+            id: String,
+            wrapper: Map<String, Any>,
+        ): CardCreateResult {
+            updatedWrapper = wrapper
+            return CardCreateResult(characterId = id, name = null)
+        }
+
+        override suspend fun fetchCardWrapper(id: String): Map<String, Any> {
+            return wrapper
+        }
+
+        override suspend fun fetchExportPng(id: String): ByteArray {
+            return ByteArray(0)
+        }
+
+        override suspend fun parseCardFile(
+            fileName: String,
+            bytes: ByteArray,
+        ): Map<String, Any> {
+            return emptyMap()
+        }
+
+        override suspend fun parseCardText(
+            content: String,
+            fileName: String?,
+        ): Map<String, Any> {
+            return emptyMap()
+        }
+
+        override suspend fun fetchTemplate(): Map<String, Any> {
+            return emptyMap()
+        }
+    }
+
     internal class AllowAllAccessManager : ContentAccessManager {
         override val gate: StateFlow<ContentGate> =
             MutableStateFlow(
@@ -145,6 +248,8 @@ class ChatViewModelTest : BaseUnitTest() {
         var startCalls = 0
         var storedVariables: Map<String, Any> = emptyMap()
         val updateCalls = mutableListOf<Map<String, Any>>()
+        val messageVariablesCalls =
+            mutableListOf<Pair<String, List<Map<String, Any>>>>()
 
         override suspend fun sendUserMessage(content: String) {
             // no-op: we only test that ViewModel clears input and toggles sending.
@@ -199,6 +304,13 @@ class ChatViewModelTest : BaseUnitTest() {
             storedVariables = variables
         }
 
+        override suspend fun updateMessageVariables(
+            messageId: String,
+            swipesData: List<Map<String, Any>>,
+        ) {
+            messageVariablesCalls.add(messageId to swipesData)
+        }
+
         override suspend fun clearLocalSession() = Unit
     }
 
@@ -211,7 +323,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -239,7 +353,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess = denyUseCase,
                 )
             val collectJob = backgroundScope.launch { vm.uiState.collect() }
@@ -311,6 +427,11 @@ class ChatViewModelTest : BaseUnitTest() {
 
                     override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
 
+                    override suspend fun updateMessageVariables(
+                        messageId: String,
+                        swipesData: List<Map<String, Any>>,
+                    ) = Unit
+
                     override suspend fun clearLocalSession() = Unit
                 }
 
@@ -319,7 +440,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -401,6 +524,11 @@ class ChatViewModelTest : BaseUnitTest() {
 
                     override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
 
+                    override suspend fun updateMessageVariables(
+                        messageId: String,
+                        swipesData: List<Map<String, Any>>,
+                    ) = Unit
+
                     override suspend fun clearLocalSession() = Unit
                 }
 
@@ -409,7 +537,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -437,7 +567,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -464,7 +596,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         DenyAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -492,7 +626,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         DenyAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -521,7 +657,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -530,10 +668,10 @@ class ChatViewModelTest : BaseUnitTest() {
                 )
             val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
 
-            vm.loadVariables()
+            vm.loadVariables(VariablesScope.Session, emptyList())
             advanceUntilIdle()
 
-            val state = vm.variablesUiState.value
+            val state = vm.variablesUiState.value.session
             assertFalse(state.isLoading)
             assertNull(state.error)
             val type = object : TypeToken<Map<String, Any>>() {}.type
@@ -552,7 +690,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -561,16 +701,16 @@ class ChatViewModelTest : BaseUnitTest() {
                 )
             val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
 
-            vm.updateVariablesText("""{"foo":"bar","count":2}""")
-            vm.saveVariables()
+            vm.updateVariablesText(VariablesScope.Session, """{"foo":"bar","count":2}""")
+            vm.saveVariables(VariablesScope.Session, emptyList())
             advanceUntilIdle()
 
             assertEquals(1, repo.updateCalls.size)
             val saved = repo.updateCalls.first()
             assertEquals("bar", saved["foo"])
             assertEquals(2.0, saved["count"])
-            assertFalse(vm.variablesUiState.value.isDirty)
-            assertNull(vm.variablesUiState.value.error)
+            assertFalse(vm.variablesUiState.value.session.isDirty)
+            assertNull(vm.variablesUiState.value.session.error)
             collectJob.cancel()
         }
 
@@ -583,7 +723,9 @@ class ChatViewModelTest : BaseUnitTest() {
                     chatRepository = repo,
                     sendUserMessage = SendUserMessageUseCase(repo),
                     characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
                     chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(
                             accessManager = AllowAllAccessManager(),
@@ -592,12 +734,291 @@ class ChatViewModelTest : BaseUnitTest() {
                 )
             val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
 
-            vm.updateVariablesText("{")
-            vm.saveVariables()
+            vm.updateVariablesText(VariablesScope.Session, "{")
+            vm.saveVariables(VariablesScope.Session, emptyList())
             advanceUntilIdle()
 
-            assertEquals("invalid json", vm.variablesUiState.value.error)
+            assertEquals("invalid json", vm.variablesUiState.value.session.error)
             assertTrue(repo.updateCalls.isEmpty())
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `load global variables populates ui state`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val prefs =
+                FakeUserPreferencesStore().apply {
+                    setGlobalVariables(mapOf("foo" to "bar", "count" to 2))
+                }
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = prefs,
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.loadVariables(VariablesScope.Global, emptyList())
+            advanceUntilIdle()
+
+            val state = vm.variablesUiState.value.global
+            assertFalse(state.isLoading)
+            assertNull(state.error)
+            val type = object : TypeToken<Map<String, Any>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any>>(state.text, type)
+            assertEquals("bar", parsed["foo"])
+            assertEquals(2.0, parsed["count"])
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `save global variables persists to preferences`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val prefs = FakeUserPreferencesStore()
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = prefs,
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.updateVariablesText(VariablesScope.Global, """{"score":3}""")
+            vm.saveVariables(VariablesScope.Global, emptyList())
+            advanceUntilIdle()
+
+            assertEquals(3.0, prefs.getGlobalVariables()["score"])
+            assertNull(vm.variablesUiState.value.global.error)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `load preset variables populates ui state`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val prefs =
+                FakeUserPreferencesStore().apply {
+                    setModelPresetId("preset-1")
+                    setPresetVariables("preset-1", mapOf("foo" to "bar", "count" to 2))
+                }
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = prefs,
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.loadVariables(VariablesScope.Preset, emptyList())
+            advanceUntilIdle()
+
+            val state = vm.variablesUiState.value.preset
+            assertFalse(state.isLoading)
+            assertNull(state.error)
+            assertEquals("preset-1", vm.variablesUiState.value.presetId)
+            val type = object : TypeToken<Map<String, Any>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any>>(state.text, type)
+            assertEquals("bar", parsed["foo"])
+            assertEquals(2.0, parsed["count"])
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `save preset variables persists to preferences`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val prefs =
+                FakeUserPreferencesStore().apply {
+                    setModelPresetId("preset-1")
+                }
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = prefs,
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.updateVariablesText(VariablesScope.Preset, """{"score":3}""")
+            vm.saveVariables(VariablesScope.Preset, emptyList())
+            advanceUntilIdle()
+
+            assertEquals(3.0, prefs.getPresetVariables("preset-1")["score"])
+            assertNull(vm.variablesUiState.value.preset.error)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `load character variables populates ui state`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val wrapper =
+                mapOf(
+                    "data" to
+                        mapOf(
+                            "extensions" to
+                                mapOf(
+                                    "tavern_helper" to
+                                        mapOf(
+                                            "variables" to
+                                                mapOf(
+                                                    "foo" to "bar",
+                                                    "count" to 2,
+                                                ),
+                                        ),
+                                ),
+                        ),
+                )
+            val cardRepo = FakeCardRepository(wrapper)
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = cardRepo,
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.loadVariables(VariablesScope.Character, emptyList())
+            advanceUntilIdle()
+
+            val state = vm.variablesUiState.value.character
+            assertFalse(state.isLoading)
+            assertNull(state.error)
+            val type = object : TypeToken<Map<String, Any>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any>>(state.text, type)
+            assertEquals("bar", parsed["foo"])
+            assertEquals(2.0, parsed["count"])
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `save character variables updates card wrapper`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val wrapper = mapOf("data" to mapOf("extensions" to emptyMap<String, Any>()))
+            val cardRepo = FakeCardRepository(wrapper)
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = cardRepo,
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.updateVariablesText(VariablesScope.Character, """{"mood":"ok"}""")
+            vm.saveVariables(VariablesScope.Character, emptyList())
+            advanceUntilIdle()
+
+            val updated = cardRepo.updatedWrapper ?: emptyMap()
+            val data = updated["data"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            val extensions = data["extensions"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            val tavernHelper = extensions["tavern_helper"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            val vars = tavernHelper["variables"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            assertEquals("ok", vars["mood"])
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `save message variables persists swipes data`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+            val messages =
+                listOf(
+                    ChatMessage(
+                        id = "m1",
+                        role = ChatRole.Assistant,
+                        content = "hello",
+                        serverId = "srv1",
+                        swipes = listOf("hello", "alt"),
+                        swipeId = 1,
+                        metadata =
+                            mapOf(
+                                "swipes_data" to
+                                    listOf(
+                                        mapOf("foo" to "bar"),
+                                        mapOf("foo" to "old"),
+                                    ),
+                            ),
+                    ),
+                )
+
+            vm.loadVariables(VariablesScope.Message, messages)
+            advanceUntilIdle()
+            vm.updateVariablesText(VariablesScope.Message, """{"score":3}""")
+            vm.saveVariables(VariablesScope.Message, messages)
+            advanceUntilIdle()
+
+            assertEquals(1, repo.messageVariablesCalls.size)
+            val call = repo.messageVariablesCalls.first()
+            assertEquals("m1", call.first)
+            assertEquals(2, call.second.size)
+            assertEquals("bar", call.second[0]["foo"])
+            assertEquals(3.0, call.second[1]["score"])
             collectJob.cancel()
         }
 }

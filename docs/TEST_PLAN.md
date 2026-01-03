@@ -35,6 +35,11 @@ compliance gating, and Play billing stability.
 - Shop purchase disabled state and error surfaces.
 - Report dialog submit success/close state.
 
+## Manual Smoke Checks (Settings)
+- Settings -> Customization -> Backgrounds: upload image, rename, delete; verify list refresh and copy link.
+- Settings -> Customization -> Backgrounds: thumbnail size hint visible when config is present.
+- Settings -> Customization -> Decorations: switch types, equip/unequip owned items, empty state shows Shop entry.
+
 ## Coverage Targets
 - Compliance and entry-path gating: 100% for all routes that can open content.
 - Chat lifecycle: create/open/restore/switch sessions covered.

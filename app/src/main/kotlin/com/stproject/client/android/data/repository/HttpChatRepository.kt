@@ -4,11 +4,13 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import com.stproject.client.android.BuildConfig
+import com.stproject.client.android.core.a2ui.A2UIClientCapabilitiesProvider
 import com.stproject.client.android.core.a2ui.A2UIMessage
 import com.stproject.client.android.core.a2ui.A2UIRuntimeReducer
 import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.network.A2UIEventRequestDto
+import com.stproject.client.android.core.network.A2UIMessageMetadataDto
 import com.stproject.client.android.core.network.A2UIUserActionDto
 import com.stproject.client.android.core.network.ApiClient
 import com.stproject.client.android.core.network.ApiException
@@ -41,7 +43,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
@@ -49,7 +50,6 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -87,13 +87,12 @@ class HttpChatRepository
         private val gson = Gson()
         private val swipesType = object : TypeToken<List<String>>() {}.type
         private val metadataType = object : TypeToken<Map<String, Any>>() {}.type
+        private var latestSessionVariables: Map<String, Any> = emptyMap()
         private val sseClient =
             okHttpClient.newBuilder()
                 .readTimeout(0, TimeUnit.SECONDS)
                 .build()
         private val sessionIdFlow = MutableStateFlow(sessionStore.getSessionId())
-        private val a2uiRefresh = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-
         override val messages: Flow<List<ChatMessage>> =
             sessionIdFlow.flatMapLatest { sessionId ->
                 if (sessionId.isNullOrBlank()) {
@@ -111,9 +110,7 @@ class HttpChatRepository
                     if (sessionId.isNullOrBlank()) {
                         flowOf(null)
                     } else {
-                        a2uiRefresh
-                            .onStart { emit(Unit) }
-                            .flatMapLatest { streamA2uiRuntime(sessionId) }
+                        streamA2uiRuntime(sessionId)
                     }
                 }.catch { emit(null) }
 
@@ -199,7 +196,6 @@ class HttpChatRepository
                 if (!hasDelta && !streamFailed) {
                     fallbackCompletion(sessionId, trimmed, userId, assistantId)
                 }
-                refreshA2UI()
             }
         }
 
@@ -212,7 +208,7 @@ class HttpChatRepository
                 action.context.entries
                     .mapNotNull { (key, value) -> value?.let { key to it } }
                     .toMap()
-                    .takeIf { it.isNotEmpty() }
+                    .ifEmpty { emptyMap() }
             val request =
                 A2UIEventRequestDto(
                     userAction =
@@ -223,9 +219,12 @@ class HttpChatRepository
                             timestamp = Instant.now().toString(),
                             context = context,
                         ),
+                    metadata =
+                        A2UIMessageMetadataDto(
+                            a2uiClientCapabilities = A2UIClientCapabilitiesProvider.capabilities,
+                        ),
                 )
             val data = apiClient.call { api.sendA2UIEvent(request) }
-            refreshA2UI()
             return A2UIActionResult(
                 accepted = data.accepted,
                 reason = data.reason,
@@ -366,6 +365,7 @@ class HttpChatRepository
                             sessionId = sessionId,
                             worldInfoMinActivations = 2,
                             worldInfoMinActivationsDepthMax = 10,
+                            globalVariables = userPreferencesStore.getGlobalVariables(),
                         ),
                     serverMessageId = serverId,
                     initialContent = "",
@@ -392,6 +392,7 @@ class HttpChatRepository
                             sessionId = sessionId,
                             worldInfoMinActivations = 2,
                             worldInfoMinActivationsDepthMax = 10,
+                            globalVariables = userPreferencesStore.getGlobalVariables(),
                         ),
                     serverMessageId = serverId,
                     initialContent = original?.content.orEmpty(),
@@ -465,7 +466,7 @@ class HttpChatRepository
             }
             val resp = apiClient.call { api.getChatSession(sessionId) }
             trackSessionUpdatedAt(resp)
-            return parseSessionVariables(resp)
+            return parseSessionVariables(resp).also { latestSessionVariables = it }
         }
 
         override suspend fun updateSessionVariables(variables: Map<String, Any>) {
@@ -479,7 +480,7 @@ class HttpChatRepository
                 )
             val resp = apiClient.call { api.updateChatSession(sessionId, request) }
             trackSessionUpdatedAt(resp)
-            refreshA2UI()
+            latestSessionVariables = variables
         }
 
         override suspend fun updateMessageVariables(
@@ -581,11 +582,6 @@ class HttpChatRepository
                     messageDao.upsertAll(entities)
                 }
             }
-            refreshA2UI()
-        }
-
-        private fun refreshA2UI() {
-            a2uiRefresh.tryEmit(Unit)
         }
 
         private suspend fun resolveServerMessageId(messageId: String): String {
@@ -689,6 +685,8 @@ class HttpChatRepository
                                 worldInfoMinActivationsDepthMax = 10,
                                 clientMessageId = userId,
                                 clientAssistantMessageId = assistantId,
+                                latestVariables = latestSessionVariables,
+                                globalVariables = userPreferencesStore.getGlobalVariables(),
                             ),
                     )
                 }
@@ -713,6 +711,8 @@ class HttpChatRepository
                             worldInfoMinActivationsDepthMax = 10,
                             clientMessageId = userId,
                             clientAssistantMessageId = assistantId,
+                            latestVariables = latestSessionVariables,
+                            globalVariables = userPreferencesStore.getGlobalVariables(),
                         ),
                     )
                 val request =

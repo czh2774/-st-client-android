@@ -73,10 +73,24 @@
     <string name="chat_share_code_label">Share code: %1$s</string>
     <string name="chat_app_link_label">App link: %1$s</string>
     <string name="chat_copy_app_link">Copy app link</string>
-    <string name="chat_variables_title">Session Variables</string>
+    <string name="chat_variables_title">Variables</string>
+    <string name="chat_variables_scope_session">Session</string>
+    <string name="chat_variables_scope_global">Global</string>
+    <string name="chat_variables_scope_preset">Preset</string>
+    <string name="chat_variables_scope_character">Character</string>
+    <string name="chat_variables_scope_message">Message</string>
     <string name="chat_variables_label">Variables (JSON)</string>
     <string name="chat_variables_save">Save</string>
     <string name="chat_variables_hint">Session variables (xb_vars). Prompt-Template setvar syncs here; /setglobalvar writes to global variables.</string>
+    <string name="chat_variables_hint_session">Session variables (xb_vars). Prompt-Template setvar syncs here; /setglobalvar writes to global variables.</string>
+    <string name="chat_variables_hint_global">Global variables are shared across chats; /setglobalvar writes here.</string>
+    <string name="chat_variables_hint_preset">Preset variables are stored per model preset.</string>
+    <string name="chat_variables_hint_character">Character variables come from TavernHelper (extensions.tavern_helper).</string>
+    <string name="chat_variables_hint_message">Message variables are stored per swipe in metadata.swipes_data.</string>
+    <string name="chat_variables_message_select">Message</string>
+    <string name="chat_variables_message_empty">No messages available.</string>
+    <string name="chat_variables_no_preset">Preset variables unavailable.</string>
+    <string name="chat_variables_no_character">Character variables unavailable.</string>
     <string name="chat_variables_loading">Loading variables...</string>
     <string name="chat_variables_invalid_json">Invalid JSON object.</string>
     <string name="chat_share_resolving_title">Resolving share code</string>
@@ -127,6 +141,9 @@
     <string name="settings_language_english">English</string>
     <string name="settings_language_zh_cn">Chinese (Simplified)</string>
     <string name="settings_model_presets_title">Model Presets</string>
+    <string name="settings_customize_title">Customization</string>
+    <string name="settings_backgrounds_title">Backgrounds</string>
+    <string name="settings_decorations_title">Decorations</string>
 
     <string name="model_presets_title">Model Presets</string>
     <string name="model_presets_use_default">Use default</string>
@@ -147,6 +164,34 @@
     <string name="privacy_dialog_body">Please review and accept the Privacy Policy and Terms of Service.</string>
     <string name="privacy_accept">Accept</string>
     <string name="privacy_decline">Decline</string>
+
+    <string name="backgrounds_title">Background Library</string>
+    <string name="backgrounds_description">Upload and manage chat backgrounds.</string>
+    <string name="backgrounds_size_hint">Thumbnail size: %1$d x %2$d</string>
+    <string name="backgrounds_upload">Upload background</string>
+    <string name="backgrounds_empty">No backgrounds yet.</string>
+    <string name="backgrounds_empty_hint">Upload an image to use it in chat.</string>
+    <string name="backgrounds_rename_title">Rename background</string>
+    <string name="backgrounds_rename_hint">Enter new name</string>
+    <string name="backgrounds_delete_title">Delete background?</string>
+    <string name="backgrounds_delete_hint">This cannot be undone.</string>
+    <string name="backgrounds_copy_link">Copy link</string>
+
+    <string name="decorations_title">Decorations</string>
+    <string name="decorations_description">Manage owned frames, bubbles, and more.</string>
+    <string name="decorations_empty">No decorations yet.</string>
+    <string name="decorations_empty_hint">Open Shop to get more.</string>
+    <string name="decorations_equip">Equip</string>
+    <string name="decorations_unequip">Unequip</string>
+    <string name="decorations_equipped">Equipped</string>
+    <string name="decorations_not_owned">Not owned</string>
+    <string name="decorations_price_credits">Price: %1$d credits</string>
+    <string name="decorations_no_preview">No preview</string>
+    <string name="decoration_type_avatar_frame">Avatar Frame</string>
+    <string name="decoration_type_title">Title</string>
+    <string name="decoration_type_bubble">Bubble</string>
+    <string name="decoration_type_background">Background</string>
+    <string name="decoration_type_effect">Effect</string>
 
     <string name="explore_share_title">Join with share code</string>
     <string name="explore_share_label">Share code or link</string>

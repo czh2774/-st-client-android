@@ -1,0 +1,33 @@
+<resources>
+    <string name="settings_customize_title">个性化</string>
+    <string name="settings_backgrounds_title">背景库</string>
+    <string name="settings_decorations_title">装饰</string>
+
+    <string name="backgrounds_title">背景库</string>
+    <string name="backgrounds_description">上传并管理聊天背景。</string>
+    <string name="backgrounds_size_hint">缩略图尺寸：%1$d x %2$d</string>
+    <string name="backgrounds_upload">上传背景</string>
+    <string name="backgrounds_empty">暂无背景。</string>
+    <string name="backgrounds_empty_hint">上传图片以用于聊天。</string>
+    <string name="backgrounds_rename_title">重命名背景</string>
+    <string name="backgrounds_rename_hint">输入新名称</string>
+    <string name="backgrounds_delete_title">删除背景？</string>
+    <string name="backgrounds_delete_hint">此操作无法撤销。</string>
+    <string name="backgrounds_copy_link">复制链接</string>
+
+    <string name="decorations_title">装饰</string>
+    <string name="decorations_description">管理已拥有的头像框、气泡等。</string>
+    <string name="decorations_empty">暂无装饰。</string>
+    <string name="decorations_empty_hint">去商店获取更多。</string>
+    <string name="decorations_equip">装备</string>
+    <string name="decorations_unequip">卸下</string>
+    <string name="decorations_equipped">已装备</string>
+    <string name="decorations_not_owned">未拥有</string>
+    <string name="decorations_price_credits">价格：%1$d 积分</string>
+    <string name="decorations_no_preview">无预览</string>
+    <string name="decoration_type_avatar_frame">头像框</string>
+    <string name="decoration_type_title">称号</string>
+    <string name="decoration_type_bubble">气泡</string>
+    <string name="decoration_type_background">背景</string>
+    <string name="decoration_type_effect">特效</string>
+</resources>

@@ -17,6 +17,7 @@ import com.stproject.client.android.core.di.AuthModule
 import com.stproject.client.android.data.di.RepositoryModule
 import com.stproject.client.android.domain.model.A2UIAction
 import com.stproject.client.android.domain.model.A2UIActionResult
+import com.stproject.client.android.domain.model.BackgroundList
 import com.stproject.client.android.domain.model.CardCreateInput
 import com.stproject.client.android.domain.model.CardCreateResult
 import com.stproject.client.android.domain.model.CharacterDetail
@@ -42,6 +43,7 @@ import com.stproject.client.android.domain.model.UserProfile
 import com.stproject.client.android.domain.model.WalletBalance
 import com.stproject.client.android.domain.model.WorldInfoEntry
 import com.stproject.client.android.domain.model.WorldInfoEntryInput
+import com.stproject.client.android.domain.repository.BackgroundRepository
 import com.stproject.client.android.domain.repository.CardRepository
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.ChatRepository
@@ -52,6 +54,7 @@ import com.stproject.client.android.domain.repository.CreatorAssistantStartResul
 import com.stproject.client.android.domain.repository.CreatorCharactersResult
 import com.stproject.client.android.domain.repository.CreatorListResult
 import com.stproject.client.android.domain.repository.CreatorRepository
+import com.stproject.client.android.domain.repository.DecorationRepository
 import com.stproject.client.android.domain.repository.IapCatalog
 import com.stproject.client.android.domain.repository.IapRepository
 import com.stproject.client.android.domain.repository.IapRestoreRequest
@@ -158,6 +161,14 @@ class DeepLinkE2eTest {
     @BindValue
     @JvmField
     val presetRepository: PresetRepository = FakePresetRepository()
+
+    @BindValue
+    @JvmField
+    val backgroundRepository: BackgroundRepository = FakeBackgroundRepository()
+
+    @BindValue
+    @JvmField
+    val decorationRepository: DecorationRepository = FakeDecorationRepository()
 
     @Before
     fun setUp() {
@@ -460,6 +471,11 @@ private class FakeChatRepository : ChatRepository {
     override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
 
     override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
+
+    override suspend fun updateMessageVariables(
+        messageId: String,
+        swipesData: List<Map<String, Any>>,
+    ) = Unit
 
     override suspend fun clearLocalSession() = Unit
 
@@ -829,4 +845,33 @@ private class FakePresetRepository : PresetRepository {
     override suspend fun listPresets(seriesId: String?): List<com.stproject.client.android.domain.model.ModelPreset> {
         return emptyList()
     }
+}
+
+private class FakeBackgroundRepository : BackgroundRepository {
+    override suspend fun listBackgrounds(): BackgroundList {
+        return BackgroundList(items = emptyList(), config = null)
+    }
+
+    override suspend fun uploadBackground(
+        fileName: String,
+        bytes: ByteArray,
+    ): String = fileName
+
+    override suspend fun renameBackground(
+        oldName: String,
+        newName: String,
+    ) = Unit
+
+    override suspend fun deleteBackground(name: String) = Unit
+}
+
+private class FakeDecorationRepository : DecorationRepository {
+    override suspend fun listDecorations(): List<com.stproject.client.android.domain.model.DecorationItem> {
+        return emptyList()
+    }
+
+    override suspend fun setDecorationEquipped(
+        decorationId: String,
+        equip: Boolean,
+    ) = Unit
 }
