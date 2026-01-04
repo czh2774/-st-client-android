@@ -8,6 +8,18 @@ interface CharacterRepository {
         isNsfw: Boolean? = null,
     ): List<com.stproject.client.android.domain.model.CharacterSummary>
 
+    suspend fun queryCharactersFiltered(
+        cursor: String? = null,
+        limit: Int? = null,
+        sortBy: String? = null,
+        isNsfw: Boolean? = null,
+        tags: List<String>? = null,
+        searchKeyword: String? = null,
+        gender: String? = null,
+    ): List<com.stproject.client.android.domain.model.CharacterSummary> {
+        return queryCharacters(cursor, limit, sortBy, isNsfw)
+    }
+
     suspend fun getCharacterDetail(characterId: String): com.stproject.client.android.domain.model.CharacterDetail
 
     suspend fun resolveShareCode(shareCode: String): String?

@@ -2,6 +2,7 @@ package com.stproject.client.android.core.preferences
 
 import android.content.SharedPreferences
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.stproject.client.android.core.theme.ThemeMode
 import javax.inject.Inject
@@ -25,15 +26,15 @@ interface UserPreferencesStore {
 
     fun setModelPresetId(presetId: String?)
 
-    fun getGlobalVariables(): Map<String, Any>
+    fun getGlobalVariables(): Map<String, Any?>
 
-    fun setGlobalVariables(variables: Map<String, Any>)
+    fun setGlobalVariables(variables: Map<String, Any?>)
 
-    fun getPresetVariables(presetId: String): Map<String, Any>
+    fun getPresetVariables(presetId: String): Map<String, Any?>
 
     fun setPresetVariables(
         presetId: String,
-        variables: Map<String, Any>,
+        variables: Map<String, Any?>,
     )
 }
 
@@ -43,8 +44,8 @@ class SharedPreferencesUserPreferencesStore
     constructor(
         @Named("user_prefs") private val prefs: SharedPreferences,
     ) : UserPreferencesStore {
-        private val gson = Gson()
-        private val variablesType = object : TypeToken<Map<String, Any>>() {}.type
+        private val gson: Gson = GsonBuilder().serializeNulls().create()
+        private val variablesType = object : TypeToken<Map<String, Any?>>() {}.type
 
         override fun isNsfwAllowed(): Boolean = prefs.getBoolean(KEY_NSFW_ALLOWED, false)
 
@@ -92,36 +93,36 @@ class SharedPreferencesUserPreferencesStore
             }.apply()
         }
 
-        override fun getGlobalVariables(): Map<String, Any> {
+        override fun getGlobalVariables(): Map<String, Any?> {
             return readVariables(KEY_GLOBAL_VARIABLES)
         }
 
-        override fun setGlobalVariables(variables: Map<String, Any>) {
+        override fun setGlobalVariables(variables: Map<String, Any?>) {
             writeVariables(KEY_GLOBAL_VARIABLES, variables)
         }
 
-        override fun getPresetVariables(presetId: String): Map<String, Any> {
+        override fun getPresetVariables(presetId: String): Map<String, Any?> {
             val key = presetVariablesKey(presetId)
             return readVariables(key)
         }
 
         override fun setPresetVariables(
             presetId: String,
-            variables: Map<String, Any>,
+            variables: Map<String, Any?>,
         ) {
             val key = presetVariablesKey(presetId)
             writeVariables(key, variables)
         }
 
-        private fun readVariables(key: String): Map<String, Any> {
+        private fun readVariables(key: String): Map<String, Any?> {
             val raw = prefs.getString(key, null) ?: return emptyMap()
-            return runCatching { gson.fromJson<Map<String, Any>>(raw, variablesType) }.getOrNull()
+            return runCatching { gson.fromJson<Map<String, Any?>>(raw, variablesType) }.getOrNull()
                 ?: emptyMap()
         }
 
         private fun writeVariables(
             key: String,
-            variables: Map<String, Any>,
+            variables: Map<String, Any?>,
         ) {
             prefs.edit().apply {
                 if (variables.isEmpty()) {

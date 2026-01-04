@@ -18,6 +18,15 @@ data class CommentListResponseDto(
     val items: List<CommentItemDto>? = null,
     val total: Int? = null,
     val hasMore: Boolean? = null,
+    val character: CommentCharacterDto? = null,
+)
+
+data class CommentCharacterDto(
+    val id: String? = null,
+    val isNsfw: Boolean? = null,
+    val moderationAgeRating: String? = null,
+    val tags: List<String>? = null,
+    val visibility: String? = null,
 )
 
 data class CreateCommentRequestDto(

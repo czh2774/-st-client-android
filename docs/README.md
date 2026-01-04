@@ -10,5 +10,6 @@
 - [ALIGNMENT_TASKS.md](ALIGNMENT_TASKS.md)：Prioritized alignment backlog
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)：Implementation plan for parity + compliance
 - [PLAY_COMPLIANCE_PLAN.md](PLAY_COMPLIANCE_PLAN.md)：Google Play 18+ compliance plan
+- [PLAY_PARITY_TARGET.md](PLAY_PARITY_TARGET.md)：Play 版本对齐目标清单
 - [TEST_PLAN.md](TEST_PLAN.md)：Parity + compliance test plan
-- (待补充) 鉴权与 Cookie 处理方案
+- 鉴权与 Cookie 管理：见 TECHNICAL_SPEC.md 的 4.2 节

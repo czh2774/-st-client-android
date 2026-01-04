@@ -7,6 +7,8 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.core.network.AppError
+import com.stproject.client.android.core.network.toAppError
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,8 +21,9 @@ import javax.inject.Inject
 data class ChatShareUiState(
     val shareCode: String? = null,
     val resolvedMemberId: String? = null,
+    val resolvedTags: List<String>? = null,
     val isResolving: Boolean = false,
-    val error: String? = null,
+    val error: AppError? = null,
 )
 
 @HiltViewModel
@@ -36,7 +39,14 @@ class ChatShareViewModel
         fun resolveShareCode(rawCode: String?) {
             val normalized = normalizeShareCode(rawCode)
             if (normalized.isNullOrEmpty()) {
-                _uiState.update { it.copy(isResolving = false, error = "Share code is required.") }
+                _uiState.update {
+                    it.copy(
+                        isResolving = false,
+                        error = AppError.Validation("Share code is required."),
+                        resolvedMemberId = null,
+                        resolvedTags = null,
+                    )
+                }
                 return
             }
             if (_uiState.value.isResolving && _uiState.value.shareCode == normalized) return
@@ -44,6 +54,7 @@ class ChatShareViewModel
                 it.copy(
                     shareCode = normalized,
                     resolvedMemberId = null,
+                    resolvedTags = null,
                     isResolving = true,
                     error = null,
                 )
@@ -52,31 +63,64 @@ class ChatShareViewModel
                 try {
                     val memberId = characterRepository.resolveShareCode(normalized)
                     if (memberId.isNullOrBlank()) {
-                        _uiState.update { it.copy(isResolving = false, error = "Share code not found.") }
+                        _uiState.update {
+                            it.copy(
+                                isResolving = false,
+                                error = AppError.Validation("Share code not found."),
+                                resolvedTags = null,
+                            )
+                        }
                         return@launch
                     }
-                    val access = resolveContentAccess.execute(memberId, null)
+                    val detail = runCatching { characterRepository.getCharacterDetail(memberId) }.getOrNull()
+                    val access =
+                        resolveContentAccess.execute(
+                            memberId,
+                            detail?.isNsfw,
+                            ageRatingHint = detail?.moderationAgeRating,
+                            tags = detail?.tags,
+                            requireMetadata = true,
+                        )
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isResolving = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isResolving = false,
+                                error = AppError.Validation(access.userMessage()),
+                            )
+                        }
                         return@launch
                     }
-                    _uiState.update { it.copy(isResolving = false, resolvedMemberId = memberId, error = null) }
+                    _uiState.update {
+                        it.copy(
+                            isResolving = false,
+                            resolvedMemberId = memberId,
+                            resolvedTags = detail?.tags,
+                            error = null,
+                        )
+                    }
                 } catch (e: ApiException) {
                     _uiState.update {
                         it.copy(
                             isResolving = false,
-                            error = e.userMessage ?: e.message,
+                            error = e.toAppError(),
+                            resolvedTags = null,
                         )
                     }
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
-                    _uiState.update { it.copy(isResolving = false, error = "unexpected error") }
+                    _uiState.update {
+                        it.copy(
+                            isResolving = false,
+                            error = AppError.Unknown("unexpected error"),
+                            resolvedTags = null,
+                        )
+                    }
                 }
             }
         }
 
         fun consumeResolvedMemberId() {
-            _uiState.update { it.copy(resolvedMemberId = null) }
+            _uiState.update { it.copy(resolvedMemberId = null, resolvedTags = null) }
         }
 
         private fun normalizeShareCode(raw: String?): String? {

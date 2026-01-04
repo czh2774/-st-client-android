@@ -8,6 +8,7 @@ data class ContentGate(
     val consentRequired: Boolean,
     val ageVerified: Boolean,
     val allowNsfwPreference: Boolean,
+    val blockedTags: List<String> = emptyList(),
 ) {
     val contentAllowed: Boolean =
         consentLoaded && !consentRequired && ageVerified
@@ -35,6 +36,30 @@ data class ContentGate(
         return decideAccess(isNsfw, ageRating) is ContentAccessDecision.Blocked
     }
 
+    fun isTagBlocked(tags: List<String>?): Boolean {
+        if (tags.isNullOrEmpty() || blockedTags.isEmpty()) return false
+        return tags.any { tag -> blockedTags.any { blocked -> blocked.equals(tag, ignoreCase = true) } }
+    }
+
+    fun blockKind(
+        isNsfw: Boolean?,
+        ageRating: AgeRating? = null,
+        tags: List<String>? = null,
+    ): ContentGateBlockKind? {
+        if (isTagBlocked(tags)) return ContentGateBlockKind.TAGS_BLOCKED
+        return when (val decision = decideAccess(isNsfw, ageRating)) {
+            is ContentAccessDecision.Allowed -> null
+            is ContentAccessDecision.Blocked ->
+                when (decision.reason) {
+                    ContentBlockReason.TAGS_BLOCKED -> ContentGateBlockKind.TAGS_BLOCKED
+                    ContentBlockReason.CONSENT_PENDING -> ContentGateBlockKind.CONSENT_PENDING
+                    ContentBlockReason.CONSENT_REQUIRED -> ContentGateBlockKind.CONSENT_REQUIRED
+                    ContentBlockReason.AGE_REQUIRED -> ContentGateBlockKind.AGE_REQUIRED
+                    ContentBlockReason.NSFW_DISABLED -> ContentGateBlockKind.NSFW_DISABLED
+                }
+        }
+    }
+
     fun isNsfwBlocked(
         isNsfw: Boolean?,
         ageRating: AgeRating? = null,
@@ -51,11 +76,21 @@ data class ContentGate(
                 consentRequired = state.consentRequired,
                 ageVerified = state.ageVerified,
                 allowNsfwPreference = state.allowNsfw,
+                blockedTags = state.blockedTags,
             )
     }
 }
 
 enum class ContentBlockReason {
+    TAGS_BLOCKED,
+    CONSENT_PENDING,
+    CONSENT_REQUIRED,
+    AGE_REQUIRED,
+    NSFW_DISABLED,
+}
+
+enum class ContentGateBlockKind {
+    TAGS_BLOCKED,
     CONSENT_PENDING,
     CONSENT_REQUIRED,
     AGE_REQUIRED,

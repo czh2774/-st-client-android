@@ -5,6 +5,11 @@ data class CreatorPreviewDto(
     val characterId: String? = null,
     val name: String? = null,
     val backgroundUrl: String? = null,
+    val tags: List<String>? = null,
+    val creatorName: String? = null,
+    val isNsfw: Boolean? = null,
+    val moderationAgeRating: String? = null,
+    val visibility: String? = null,
 )
 
 data class CreatorCardDto(

@@ -7,7 +7,6 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
-import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.usecase.FollowCharacterUseCase
 import com.stproject.client.android.domain.usecase.GuardedActionResult
@@ -47,12 +46,16 @@ class ExploreViewModel
                         }
                         return@launch
                     }
+                    val state = _uiState.value
                     val items =
-                        characterRepository.queryCharacters(
+                        characterRepository.queryCharactersFiltered(
                             cursor = null,
                             limit = 20,
-                            sortBy = "homepage",
+                            sortBy = state.sortBy,
                             isNsfw = if (allowNsfw) null else false,
+                            tags = parseTags(state.tagsInput),
+                            searchKeyword = state.searchKeyword,
+                            gender = null,
                         )
                     _uiState.update { it.copy(isLoading = false, items = items) }
                 } catch (e: ApiException) {
@@ -66,6 +69,37 @@ class ExploreViewModel
 
         fun setNsfwAllowed(allow: Boolean) {
             allowNsfw = allow
+        }
+
+        fun onSearchChanged(value: String) {
+            _uiState.update { it.copy(searchKeyword = value) }
+        }
+
+        fun onTagsChanged(value: String) {
+            _uiState.update { it.copy(tagsInput = value) }
+        }
+
+        fun setSortBy(sortBy: String) {
+            val normalized = sortBy.trim()
+            if (normalized.isEmpty()) return
+            if (normalized == _uiState.value.sortBy) return
+            _uiState.update { it.copy(sortBy = normalized) }
+            load(force = true)
+        }
+
+        fun applyFilters() {
+            load(force = true)
+        }
+
+        fun clearFilters() {
+            _uiState.update {
+                it.copy(
+                    sortBy = "homepage",
+                    searchKeyword = "",
+                    tagsInput = "",
+                )
+            }
+            load(force = true)
         }
 
         fun followCharacter(
@@ -125,28 +159,31 @@ class ExploreViewModel
                 _uiState.update { it.copy(shareCodeError = "Share code is required.") }
                 return
             }
-            _uiState.update { it.copy(isResolvingShareCode = true, shareCodeError = null) }
+            _uiState.update { it.copy(isResolvingShareCode = true, shareCodeError = null, resolvedTags = null) }
             viewModelScope.launch {
                 try {
                     val memberId = characterRepository.resolveShareCode(normalized)
                     if (memberId.isNullOrBlank()) {
                         _uiState.update {
-                            it.copy(isResolvingShareCode = false, shareCodeError = "Share code not found.")
+                            it.copy(
+                                isResolvingShareCode = false,
+                                shareCodeError = "Share code not found.",
+                                resolvedTags = null,
+                            )
                         }
                         return@launch
                     }
-                    var resolvedIsNsfw: Boolean? = null
-                    var resolvedAgeRating: AgeRating? = null
-                    if (!allowNsfw) {
-                        val detail = characterRepository.getCharacterDetail(memberId)
-                        resolvedIsNsfw = detail.isNsfw
-                        resolvedAgeRating = detail.moderationAgeRating
-                    }
+                    val detail = runCatching { characterRepository.getCharacterDetail(memberId) }.getOrNull()
+                    val resolvedIsNsfw = detail?.isNsfw
+                    val resolvedAgeRating = detail?.moderationAgeRating
+                    val resolvedTags = detail?.tags
                     val access =
                         resolveContentAccess.execute(
                             memberId = memberId,
                             isNsfwHint = resolvedIsNsfw,
                             ageRatingHint = resolvedAgeRating,
+                            tags = resolvedTags,
+                            requireMetadata = true,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
@@ -156,6 +193,7 @@ class ExploreViewModel
                                 resolvedShareCode = null,
                                 resolvedIsNsfw = null,
                                 resolvedAgeRating = null,
+                                resolvedTags = null,
                                 accessError = access.userMessage(),
                             )
                         }
@@ -168,6 +206,7 @@ class ExploreViewModel
                             resolvedShareCode = normalized,
                             resolvedIsNsfw = resolvedIsNsfw,
                             resolvedAgeRating = resolvedAgeRating,
+                            resolvedTags = resolvedTags,
                         )
                     }
                 } catch (e: ApiException) {
@@ -175,6 +214,7 @@ class ExploreViewModel
                         it.copy(
                             isResolvingShareCode = false,
                             shareCodeError = e.userMessage ?: e.message,
+                            resolvedTags = null,
                         )
                     }
                 } catch (e: Exception) {
@@ -183,6 +223,7 @@ class ExploreViewModel
                         it.copy(
                             isResolvingShareCode = false,
                             shareCodeError = "unexpected error",
+                            resolvedTags = null,
                         )
                     }
                 }
@@ -196,6 +237,7 @@ class ExploreViewModel
                     resolvedShareCode = null,
                     resolvedIsNsfw = null,
                     resolvedAgeRating = null,
+                    resolvedTags = null,
                 )
             }
         }
@@ -206,5 +248,13 @@ class ExploreViewModel
             val parsed = runCatching { Uri.parse(trimmed) }.getOrNull()
             val queryCode = parsed?.getQueryParameter("shareCode")?.trim()
             return if (!queryCode.isNullOrEmpty()) queryCode else trimmed
+        }
+
+        private fun parseTags(raw: String): List<String>? {
+            val cleaned =
+                raw.split(",", "\n", "\t", " ")
+                    .mapNotNull { it.trim().takeIf { part -> part.isNotEmpty() } }
+                    .distinct()
+            return cleaned.takeIf { it.isNotEmpty() }
         }
     }

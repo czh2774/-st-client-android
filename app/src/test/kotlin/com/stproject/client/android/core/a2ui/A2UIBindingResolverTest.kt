@@ -6,19 +6,27 @@ import org.junit.Test
 
 class A2UIBindingResolverTest {
     @Test
-    fun `initializes data model when path and literal provided`() {
-        val dataModel = mutableMapOf<String, Any?>()
+    fun `returns literal when path is missing`() {
+        val dataModel = mapOf<String, Any?>()
         val value = JsonParser.parseString("""{"path":"/user/name","literalString":"Guest"}""")
 
         val resolved = A2UIBindingResolver.resolveValue(value, dataModel)
 
-        val user = dataModel["user"] as? Map<*, *>
-        assertEquals("Guest", user?.get("name"))
         assertEquals("Guest", resolved)
     }
 
     @Test
-    fun `resolves relative paths against template item`() {
+    fun `prefers data model value over literal`() {
+        val dataModel = mapOf("user" to mapOf("name" to "Alice"))
+        val value = JsonParser.parseString("""{"path":"/user/name","literalString":"Guest"}""")
+
+        val resolved = A2UIBindingResolver.resolveValue(value, dataModel)
+
+        assertEquals("Alice", resolved)
+    }
+
+    @Test
+    fun `resolves relative template paths against item scope and absolute against root`() {
         val dataModel =
             mutableMapOf<String, Any?>(
                 "name" to "Parent",
@@ -32,6 +40,34 @@ class A2UIBindingResolverTest {
 
         assertEquals("Item", relativeValue)
         assertEquals("Parent", absoluteValue)
+    }
+
+    @Test
+    fun `resolves absolute paths against root when no template`() {
+        val dataModel = mapOf("name" to "Root")
+        val value = JsonParser.parseString("""{"path":"/name"}""")
+
+        val resolved = A2UIBindingResolver.resolveString(value, dataModel)
+
+        assertEquals("Root", resolved)
+    }
+
+    @Test
+    fun `decodes json pointer escape sequences`() {
+        val dataModel =
+            mapOf(
+                "a/b" to "slash",
+                "tilde~key" to "tilde",
+            )
+
+        val slash = JsonParser.parseString("""{"path":"/a~1b"}""")
+        val tilde = JsonParser.parseString("""{"path":"/tilde~0key"}""")
+
+        val slashValue = A2UIBindingResolver.resolveString(slash, dataModel)
+        val tildeValue = A2UIBindingResolver.resolveString(tilde, dataModel)
+
+        assertEquals("slash", slashValue)
+        assertEquals("tilde", tildeValue)
     }
 
     @Test

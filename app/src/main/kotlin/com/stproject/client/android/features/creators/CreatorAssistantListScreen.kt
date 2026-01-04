@@ -21,6 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -29,15 +32,20 @@ import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.domain.model.CreatorAssistantSessionSummary
+import com.stproject.client.android.features.chat.ModerationViewModel
+import com.stproject.client.android.features.chat.ReportDialog
 
 @Composable
 fun CreatorAssistantListScreen(
     viewModel: CreatorAssistantListViewModel,
+    moderationViewModel: ModerationViewModel,
     onBack: () -> Unit,
     onOpenSession: (String) -> Unit,
     contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val moderationState by moderationViewModel.uiState.collectAsState()
+    var reportOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.load()
@@ -77,7 +85,12 @@ fun CreatorAssistantListScreen(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 if (contentGate.nsfwAllowed) {
-                    RestrictedContentNotice(onReport = null)
+                    RestrictedContentNotice(
+                        onReport = {
+                            reportOpen = true
+                            moderationViewModel.loadReasonsIfNeeded()
+                        },
+                    )
                 }
                 Button(onClick = viewModel::startSession, enabled = !uiState.isLoading) {
                     Text(stringResource(R.string.assistant_new_session))
@@ -101,6 +114,17 @@ fun CreatorAssistantListScreen(
                             .background(MaterialTheme.colorScheme.errorContainer)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                     text = uiState.error ?: "",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            if (moderationState.error != null) {
+                Text(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = moderationState.error ?: "",
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
@@ -136,6 +160,22 @@ fun CreatorAssistantListScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (reportOpen) {
+        ReportDialog(
+            state = moderationState,
+            onDismiss = { reportOpen = false },
+            onSubmit = { reasons, detail ->
+                moderationViewModel.submitReport(reasons, detail)
+            },
+        )
+    }
+
+    LaunchedEffect(moderationState.lastReportSubmitted) {
+        if (moderationState.lastReportSubmitted) {
+            reportOpen = false
         }
     }
 }

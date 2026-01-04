@@ -8,6 +8,9 @@ data class ExploreUiState(
     val items: List<CharacterSummary> = emptyList(),
     val error: String? = null,
     val accessError: String? = null,
+    val sortBy: String = "homepage",
+    val searchKeyword: String = "",
+    val tagsInput: String = "",
     val shareCodeInput: String = "",
     val shareCodeError: String? = null,
     val isResolvingShareCode: Boolean = false,
@@ -15,4 +18,5 @@ data class ExploreUiState(
     val resolvedMemberId: String? = null,
     val resolvedIsNsfw: Boolean? = null,
     val resolvedAgeRating: AgeRating? = null,
+    val resolvedTags: List<String>? = null,
 )

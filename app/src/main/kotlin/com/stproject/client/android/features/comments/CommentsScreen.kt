@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.ContentGateBlockKind
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.domain.model.Comment
@@ -53,6 +54,13 @@ fun CommentsScreen(
     val moderationState by moderationViewModel.uiState.collectAsState()
     var reportOpen by remember { mutableStateOf(false) }
     var reportTargetCommentId by remember { mutableStateOf<String?>(null) }
+    val blockKind =
+        contentGate.blockKind(
+            uiState.characterIsNsfw,
+            uiState.characterAgeRating,
+            uiState.characterTags,
+        )
+    val tagBlocked = blockKind == ContentGateBlockKind.TAGS_BLOCKED
 
     LaunchedEffect(characterId) {
         viewModel.load(characterId)
@@ -124,138 +132,155 @@ fun CommentsScreen(
                 )
             }
 
-            if (contentGate.nsfwAllowed &&
-                resolveNsfwHint(uiState.characterIsNsfw, uiState.characterAgeRating) == true
-            ) {
-                RestrictedContentNotice(onReport = null)
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SortChip(
-                    label = stringResource(R.string.comments_sort_hot),
-                    selected = uiState.sort == CommentSort.Hot,
-                    onClick = { viewModel.setSort(CommentSort.Hot) },
+            if (tagBlocked) {
+                Text(
+                    text = stringResource(R.string.content_access_blocked_title),
+                    style = MaterialTheme.typography.titleMedium,
                 )
-                SortChip(
-                    label = stringResource(R.string.comments_sort_new),
-                    selected = uiState.sort == CommentSort.New,
-                    onClick = { viewModel.setSort(CommentSort.New) },
+                Text(
+                    text = stringResource(R.string.content_blocked_filters_body),
+                    style = MaterialTheme.typography.bodyMedium,
                 )
-                Spacer(modifier = Modifier.weight(1f))
-                TextButton(onClick = viewModel::refresh, enabled = !uiState.isLoading) {
-                    Text(stringResource(R.string.common_refresh))
+            } else {
+                if (contentGate.nsfwAllowed &&
+                    resolveNsfwHint(uiState.characterIsNsfw, uiState.characterAgeRating) == true
+                ) {
+                    RestrictedContentNotice(
+                        onReport = {
+                            reportTargetCommentId = null
+                            reportOpen = true
+                            moderationViewModel.loadReasonsIfNeeded()
+                        },
+                    )
                 }
-            }
 
-            if (uiState.isLoading) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CircularProgressIndicator()
+                    SortChip(
+                        label = stringResource(R.string.comments_sort_hot),
+                        selected = uiState.sort == CommentSort.Hot,
+                        onClick = { viewModel.setSort(CommentSort.Hot) },
+                    )
+                    SortChip(
+                        label = stringResource(R.string.comments_sort_new),
+                        selected = uiState.sort == CommentSort.New,
+                        onClick = { viewModel.setSort(CommentSort.New) },
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    TextButton(onClick = viewModel::refresh, enabled = !uiState.isLoading) {
+                        Text(stringResource(R.string.common_refresh))
+                    }
                 }
-            }
 
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (!uiState.isLoading && uiState.items.isEmpty()) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.comments_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                if (uiState.isLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator()
                     }
-                } else {
-                    items(items = uiState.items, key = { it.id }) { comment ->
-                        CommentThread(
-                            comment = comment,
-                            indentLevel = 0,
-                            currentUserId = uiState.currentUserId,
-                            onLike = { viewModel.toggleLike(it) },
-                            onReply = { viewModel.setReplyTarget(it) },
-                            onDelete = { viewModel.deleteComment(it.id) },
-                            onReport = {
-                                reportTargetCommentId = it.id
-                                reportOpen = true
-                                moderationViewModel.loadReasonsIfNeeded()
-                            },
-                        )
-                    }
-                    if (uiState.hasMore) {
+                }
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (!uiState.isLoading && uiState.items.isEmpty()) {
                         item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                Button(
-                                    onClick = viewModel::loadMore,
-                                    enabled = !uiState.isLoadingMore,
+                            Text(
+                                text = stringResource(R.string.comments_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    } else {
+                        items(items = uiState.items, key = { it.id }) { comment ->
+                            CommentThread(
+                                comment = comment,
+                                indentLevel = 0,
+                                currentUserId = uiState.currentUserId,
+                                onLike = { viewModel.toggleLike(it) },
+                                onReply = { viewModel.setReplyTarget(it) },
+                                onDelete = { viewModel.deleteComment(it.id) },
+                                onReport = {
+                                    reportTargetCommentId = it.id
+                                    reportOpen = true
+                                    moderationViewModel.loadReasonsIfNeeded()
+                                },
+                            )
+                        }
+                        if (uiState.hasMore) {
+                            item {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center,
                                 ) {
-                                    Text(stringResource(R.string.common_load_more))
+                                    Button(
+                                        onClick = viewModel::loadMore,
+                                        enabled = !uiState.isLoadingMore,
+                                    ) {
+                                        Text(stringResource(R.string.common_load_more))
+                                    }
+                                }
+                            }
+                        }
+                        if (uiState.isLoadingMore) {
+                            item {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    CircularProgressIndicator()
                                 }
                             }
                         }
                     }
-                    if (uiState.isLoadingMore) {
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                CircularProgressIndicator()
-                            }
+                }
+
+                if (uiState.replyTarget != null) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text =
+                                stringResource(
+                                    R.string.comments_replying_to,
+                                    uiState.replyTarget?.username ?: "",
+                                ),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        TextButton(onClick = viewModel::clearReplyTarget) {
+                            Text(stringResource(R.string.common_cancel))
                         }
                     }
                 }
-            }
 
-            if (uiState.replyTarget != null) {
                 Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string.comments_replying_to,
-                                uiState.replyTarget?.username ?: "",
-                            ),
-                        style = MaterialTheme.typography.bodySmall,
+                    OutlinedTextField(
+                        modifier = Modifier.weight(1f),
+                        value = uiState.input,
+                        onValueChange = viewModel::onInputChanged,
+                        enabled = !uiState.isSubmitting,
+                        label = { Text(stringResource(R.string.comments_placeholder)) },
                     )
-                    TextButton(onClick = viewModel::clearReplyTarget) {
-                        Text(stringResource(R.string.common_cancel))
+                    Button(
+                        onClick = viewModel::submitComment,
+                        enabled = !uiState.isSubmitting,
+                    ) {
+                        Text(stringResource(R.string.common_send))
                     }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedTextField(
-                    modifier = Modifier.weight(1f),
-                    value = uiState.input,
-                    onValueChange = viewModel::onInputChanged,
-                    enabled = !uiState.isSubmitting,
-                    label = { Text(stringResource(R.string.comments_placeholder)) },
-                )
-                Button(
-                    onClick = viewModel::submitComment,
-                    enabled = !uiState.isSubmitting,
-                ) {
-                    Text(stringResource(R.string.common_send))
                 }
             }
         }

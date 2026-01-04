@@ -19,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -27,13 +30,18 @@ import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.domain.model.NotificationItem
+import com.stproject.client.android.features.chat.ModerationViewModel
+import com.stproject.client.android.features.chat.ReportDialog
 
 @Composable
 fun NotificationsScreen(
     viewModel: NotificationsViewModel,
+    moderationViewModel: ModerationViewModel,
     contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val moderationState by moderationViewModel.uiState.collectAsState()
+    var reportTargetId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.load()
@@ -55,7 +63,15 @@ fun NotificationsScreen(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 if (contentGate.nsfwAllowed) {
-                    RestrictedContentNotice(onReport = null)
+                    RestrictedContentNotice(
+                        onReport = {
+                            val targetId = uiState.items.firstOrNull { !it.userId.isNullOrBlank() }?.userId
+                            if (!targetId.isNullOrBlank()) {
+                                reportTargetId = targetId
+                                moderationViewModel.loadReasonsIfNeeded()
+                            }
+                        },
+                    )
                 }
                 Text(
                     text = stringResource(R.string.notifications_unread, uiState.unreadCounts.total),
@@ -89,12 +105,30 @@ fun NotificationsScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
+            if (moderationState.error != null) {
+                Text(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = moderationState.error ?: "",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(items = uiState.items, key = { it.id }) { item ->
-                    NotificationRow(item = item, onMarkRead = viewModel::markRead)
+                    NotificationRow(
+                        item = item,
+                        onMarkRead = viewModel::markRead,
+                        onReport = { userId ->
+                            reportTargetId = userId
+                            moderationViewModel.loadReasonsIfNeeded()
+                        },
+                    )
                 }
                 if (uiState.hasMore) {
                     item(key = "load-more") {
@@ -119,12 +153,30 @@ fun NotificationsScreen(
             }
         }
     }
+
+    if (reportTargetId != null) {
+        ReportDialog(
+            state = moderationState,
+            onDismiss = { reportTargetId = null },
+            onSubmit = { reasons, detail ->
+                val targetId = reportTargetId ?: return@ReportDialog
+                moderationViewModel.submitReportForUser(targetId, reasons, detail)
+            },
+        )
+    }
+
+    LaunchedEffect(moderationState.lastReportSubmitted) {
+        if (moderationState.lastReportSubmitted) {
+            reportTargetId = null
+        }
+    }
 }
 
 @Composable
 private fun NotificationRow(
     item: NotificationItem,
     onMarkRead: (String) -> Unit,
+    onReport: (String) -> Unit,
 ) {
     Column(
         modifier =
@@ -143,10 +195,17 @@ private fun NotificationRow(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = item.type.ifBlank { stringResource(R.string.notifications_type_general) },
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = item.type.ifBlank { stringResource(R.string.notifications_type_general) },
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (!item.userId.isNullOrBlank()) {
+                    TextButton(onClick = { onReport(item.userId) }) {
+                        Text(stringResource(R.string.common_report))
+                    }
+                }
+            }
             if (!item.isRead) {
                 TextButton(onClick = { onMarkRead(item.id) }) {
                     Text(stringResource(R.string.notifications_mark_read))

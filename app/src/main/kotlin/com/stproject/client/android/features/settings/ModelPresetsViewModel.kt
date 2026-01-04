@@ -3,10 +3,13 @@ package com.stproject.client.android.features.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.stproject.client.android.core.common.rethrowIfCancellation
+import com.stproject.client.android.core.compliance.ContentAccessDecision
+import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.core.preferences.UserPreferencesStore
 import com.stproject.client.android.domain.model.ModelPreset
 import com.stproject.client.android.domain.repository.PresetRepository
+import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +30,7 @@ class ModelPresetsViewModel
     constructor(
         private val presetRepository: PresetRepository,
         private val userPreferencesStore: UserPreferencesStore,
+        private val resolveContentAccess: ResolveContentAccessUseCase,
     ) : ViewModel() {
         private val _uiState =
             MutableStateFlow(
@@ -41,6 +45,16 @@ class ModelPresetsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    if (access is ContentAccessDecision.Blocked) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                error = access.userMessage(),
+                            )
+                        }
+                        return@launch
+                    }
                     val items =
                         presetRepository
                             .listPresets(seriesId)

@@ -24,26 +24,53 @@ class HttpCharacterRepository
         private val api: StCharacterApi,
         private val apiClient: ApiClient,
     ) : CharacterRepository {
-        override suspend fun queryCharacters(
-            cursor: String?,
-            limit: Int?,
-            sortBy: String?,
-            isNsfw: Boolean?,
-        ): List<CharacterSummary> {
-            val resp =
-                apiClient.call {
-                    api.queryCharacters(
-                        QueryCharactersRequestDto(
-                            cursor = cursor?.trim()?.takeIf { it.isNotEmpty() },
-                            limit = limit,
-                            sortBy = sortBy?.trim()?.takeIf { it.isNotEmpty() },
-                            isNsfw = isNsfw,
-                        ),
-                    )
-                }
-            val items = resp.items ?: emptyList()
-            return items.map { it.toDomain() }
-        }
+    override suspend fun queryCharacters(
+        cursor: String?,
+        limit: Int?,
+        sortBy: String?,
+        isNsfw: Boolean?,
+    ): List<CharacterSummary> {
+        return queryCharactersFiltered(
+            cursor = cursor,
+            limit = limit,
+            sortBy = sortBy,
+            isNsfw = isNsfw,
+            tags = null,
+            searchKeyword = null,
+            gender = null,
+        )
+    }
+
+    override suspend fun queryCharactersFiltered(
+        cursor: String?,
+        limit: Int?,
+        sortBy: String?,
+        isNsfw: Boolean?,
+        tags: List<String>?,
+        searchKeyword: String?,
+        gender: String?,
+    ): List<CharacterSummary> {
+        val cleanedTags =
+            tags
+                ?.mapNotNull { tag -> tag.trim().takeIf { it.isNotEmpty() } }
+                ?.takeIf { it.isNotEmpty() }
+        val resp =
+            apiClient.call {
+                api.queryCharacters(
+                    QueryCharactersRequestDto(
+                        cursor = cursor?.trim()?.takeIf { it.isNotEmpty() },
+                        limit = limit,
+                        sortBy = sortBy?.trim()?.takeIf { it.isNotEmpty() },
+                        gender = gender?.trim()?.takeIf { it.isNotEmpty() },
+                        tags = cleanedTags,
+                        isNsfw = isNsfw,
+                        searchKeyword = searchKeyword?.trim()?.takeIf { it.isNotEmpty() },
+                    ),
+                )
+            }
+        val items = resp.items ?: emptyList()
+        return items.map { it.toDomain() }
+    }
 
         override suspend fun getCharacterDetail(characterId: String): CharacterDetail {
             val dto = apiClient.call { api.getCharacter(characterId) }
@@ -88,7 +115,8 @@ class HttpCharacterRepository
                 name = name.trim(),
                 description = description?.trim().orEmpty(),
                 avatarUrl = avatar?.trim()?.takeIf { it.isNotEmpty() },
-                isNsfw = isNsfw ?: false,
+                tags = tags?.mapNotNull { it.trim().takeIf { it.isNotEmpty() } } ?: emptyList(),
+                isNsfw = isNsfw,
                 moderationAgeRating = AgeRating.from(moderationAgeRating),
                 totalFollowers = totalFollowers ?: 0,
                 isFollowed = isFollowed ?: false,
@@ -99,9 +127,9 @@ class HttpCharacterRepository
                 id = id,
                 name = name.trim(),
                 description = description?.trim().orEmpty(),
-                tags = tags ?: emptyList(),
+                tags = tags?.mapNotNull { it.trim().takeIf { it.isNotEmpty() } } ?: emptyList(),
                 creatorName = creatorName?.trim()?.takeIf { it.isNotEmpty() },
-                isNsfw = isNsfw ?: false,
+                isNsfw = isNsfw,
                 moderationAgeRating = AgeRating.from(moderationAgeRating),
                 totalFollowers = totalFollowers ?: 0,
                 isFollowed = isFollowed ?: false,

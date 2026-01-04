@@ -62,6 +62,7 @@ class CreatorCharactersViewModel
                                 item.id,
                                 item.isNsfw,
                                 ageRatingHint = item.moderationAgeRating,
+                                tags = item.tags,
                             ) is ContentAccessDecision.Allowed
                         }
                     _uiState.update {
@@ -113,6 +114,7 @@ class CreatorCharactersViewModel
                                 item.id,
                                 item.isNsfw,
                                 ageRatingHint = item.moderationAgeRating,
+                                tags = item.tags,
                             ) is ContentAccessDecision.Allowed
                         }
                     _uiState.update {

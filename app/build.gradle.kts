@@ -15,6 +15,7 @@ android {
     val defaultCharacterIdProvider = providers.gradleProperty("ST_DEFAULT_CHARACTER_ID")
     val privacyUrlProvider = providers.gradleProperty("ST_PRIVACY_URL")
     val termsUrlProvider = providers.gradleProperty("ST_TERMS_URL")
+    val badgesEnabledProvider = providers.gradleProperty("ST_BADGES_ENABLED")
 
     defaultConfig {
         applicationId = "com.stproject.client.android"
@@ -49,11 +50,16 @@ android {
                 termsUrlProvider
                     .orElse("https://nea-i.com/terms")
                     .get()
+            val badgesEnabled =
+                badgesEnabledProvider
+                    .orElse("false")
+                    .get()
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("String", "DEFAULT_CHARACTER_ID", "\"$defaultCharacterId\"")
             buildConfigField("String", "PRIVACY_URL", "\"$privacyUrl\"")
             buildConfigField("String", "TERMS_URL", "\"$termsUrl\"")
             buildConfigField("boolean", "PLAY_BUILD", "false")
+            buildConfigField("boolean", "BADGES_ENABLED", badgesEnabled)
         }
         release {
             isMinifyEnabled = true
@@ -74,11 +80,16 @@ android {
                 termsUrlProvider
                     .orElse("__SET_ME__")
                     .get()
+            val badgesEnabled =
+                badgesEnabledProvider
+                    .orElse("false")
+                    .get()
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
             buildConfigField("String", "DEFAULT_CHARACTER_ID", "\"$defaultCharacterId\"")
             buildConfigField("String", "PRIVACY_URL", "\"$privacyUrl\"")
             buildConfigField("String", "TERMS_URL", "\"$termsUrl\"")
             buildConfigField("boolean", "PLAY_BUILD", "true")
+            buildConfigField("boolean", "BADGES_ENABLED", badgesEnabled)
         }
     }
     compileOptions {

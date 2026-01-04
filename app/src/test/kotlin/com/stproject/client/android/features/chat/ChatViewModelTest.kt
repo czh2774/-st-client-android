@@ -113,8 +113,8 @@ class ChatViewModelTest : BaseUnitTest() {
         private var themeMode = com.stproject.client.android.core.theme.ThemeMode.System
         private var languageTag: String? = null
         private var presetId: String? = null
-        private var globalVariables: Map<String, Any> = emptyMap()
-        private val presetVariables = mutableMapOf<String, Map<String, Any>>()
+        private var globalVariables: Map<String, Any?> = emptyMap()
+        private val presetVariables = mutableMapOf<String, Map<String, Any?>>()
 
         override fun isNsfwAllowed(): Boolean = nsfwAllowed
 
@@ -140,19 +140,19 @@ class ChatViewModelTest : BaseUnitTest() {
             this.presetId = presetId
         }
 
-        override fun getGlobalVariables(): Map<String, Any> = globalVariables
+        override fun getGlobalVariables(): Map<String, Any?> = globalVariables
 
-        override fun setGlobalVariables(variables: Map<String, Any>) {
+        override fun setGlobalVariables(variables: Map<String, Any?>) {
             globalVariables = variables
         }
 
-        override fun getPresetVariables(presetId: String): Map<String, Any> {
+        override fun getPresetVariables(presetId: String): Map<String, Any?> {
             return presetVariables[presetId] ?: emptyMap()
         }
 
         override fun setPresetVariables(
             presetId: String,
-            variables: Map<String, Any>,
+            variables: Map<String, Any?>,
         ) {
             presetVariables[presetId] = variables
         }
@@ -235,6 +235,7 @@ class ChatViewModelTest : BaseUnitTest() {
             memberId: String?,
             isNsfwHint: Boolean?,
             ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
+            tags: List<String>?,
         ): ContentAccessDecision {
             return ContentAccessDecision.Blocked(ContentBlockReason.NSFW_DISABLED)
         }
@@ -246,10 +247,10 @@ class ChatViewModelTest : BaseUnitTest() {
         override val a2uiState: Flow<A2UIRuntimeState?> =
             MutableStateFlow(null)
         var startCalls = 0
-        var storedVariables: Map<String, Any> = emptyMap()
-        val updateCalls = mutableListOf<Map<String, Any>>()
+        var storedVariables: Map<String, Any?> = emptyMap()
+        val updateCalls = mutableListOf<Map<String, Any?>>()
         val messageVariablesCalls =
-            mutableListOf<Pair<String, List<Map<String, Any>>>>()
+            mutableListOf<Pair<String, List<Map<String, Any?>>>>()
 
         override suspend fun sendUserMessage(content: String) {
             // no-op: we only test that ViewModel clears input and toggles sending.
@@ -297,16 +298,16 @@ class ChatViewModelTest : BaseUnitTest() {
             swipeId: Int?,
         ) = Unit
 
-        override suspend fun loadSessionVariables(): Map<String, Any> = storedVariables
+        override suspend fun loadSessionVariables(): Map<String, Any?> = storedVariables
 
-        override suspend fun updateSessionVariables(variables: Map<String, Any>) {
+        override suspend fun updateSessionVariables(variables: Map<String, Any?>) {
             updateCalls.add(variables)
             storedVariables = variables
         }
 
         override suspend fun updateMessageVariables(
             messageId: String,
-            swipesData: List<Map<String, Any>>,
+            swipesData: List<Map<String, Any?>>,
         ) {
             messageVariablesCalls.add(messageId to swipesData)
         }
@@ -423,13 +424,13 @@ class ChatViewModelTest : BaseUnitTest() {
                         swipeId: Int?,
                     ) = Unit
 
-                    override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+                    override suspend fun loadSessionVariables(): Map<String, Any?> = emptyMap()
 
-                    override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
+                    override suspend fun updateSessionVariables(variables: Map<String, Any?>) = Unit
 
                     override suspend fun updateMessageVariables(
                         messageId: String,
-                        swipesData: List<Map<String, Any>>,
+                        swipesData: List<Map<String, Any?>>,
                     ) = Unit
 
                     override suspend fun clearLocalSession() = Unit
@@ -520,13 +521,13 @@ class ChatViewModelTest : BaseUnitTest() {
                         swipeId: Int?,
                     ) = Unit
 
-                    override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+                    override suspend fun loadSessionVariables(): Map<String, Any?> = emptyMap()
 
-                    override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
+                    override suspend fun updateSessionVariables(variables: Map<String, Any?>) = Unit
 
                     override suspend fun updateMessageVariables(
                         messageId: String,
-                        swipesData: List<Map<String, Any>>,
+                        swipesData: List<Map<String, Any?>>,
                     ) = Unit
 
                     override suspend fun clearLocalSession() = Unit
@@ -674,8 +675,8 @@ class ChatViewModelTest : BaseUnitTest() {
             val state = vm.variablesUiState.value.session
             assertFalse(state.isLoading)
             assertNull(state.error)
-            val type = object : TypeToken<Map<String, Any>>() {}.type
-            val parsed = Gson().fromJson<Map<String, Any>>(state.text, type)
+            val type = object : TypeToken<Map<String, Any?>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any?>>(state.text, type)
             assertEquals("bar", parsed["foo"])
             assertEquals(2.0, parsed["count"])
             collectJob.cancel()
@@ -711,6 +712,38 @@ class ChatViewModelTest : BaseUnitTest() {
             assertEquals(2.0, saved["count"])
             assertFalse(vm.variablesUiState.value.session.isDirty)
             assertNull(vm.variablesUiState.value.session.error)
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `save variables preserves null values`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = FakeCardRepository(),
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.updateVariablesText(VariablesScope.Session, """{"foo":null,"count":2}""")
+            vm.saveVariables(VariablesScope.Session, emptyList())
+            advanceUntilIdle()
+
+            assertEquals(1, repo.updateCalls.size)
+            val saved = repo.updateCalls.first()
+            assertTrue(saved.containsKey("foo"))
+            assertNull(saved["foo"])
+            assertEquals(2.0, saved["count"])
             collectJob.cancel()
         }
 
@@ -773,8 +806,8 @@ class ChatViewModelTest : BaseUnitTest() {
             val state = vm.variablesUiState.value.global
             assertFalse(state.isLoading)
             assertNull(state.error)
-            val type = object : TypeToken<Map<String, Any>>() {}.type
-            val parsed = Gson().fromJson<Map<String, Any>>(state.text, type)
+            val type = object : TypeToken<Map<String, Any?>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any?>>(state.text, type)
             assertEquals("bar", parsed["foo"])
             assertEquals(2.0, parsed["count"])
             collectJob.cancel()
@@ -842,8 +875,8 @@ class ChatViewModelTest : BaseUnitTest() {
             assertFalse(state.isLoading)
             assertNull(state.error)
             assertEquals("preset-1", vm.variablesUiState.value.presetId)
-            val type = object : TypeToken<Map<String, Any>>() {}.type
-            val parsed = Gson().fromJson<Map<String, Any>>(state.text, type)
+            val type = object : TypeToken<Map<String, Any?>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any?>>(state.text, type)
             assertEquals("bar", parsed["foo"])
             assertEquals(2.0, parsed["count"])
             collectJob.cancel()
@@ -926,9 +959,105 @@ class ChatViewModelTest : BaseUnitTest() {
             val state = vm.variablesUiState.value.character
             assertFalse(state.isLoading)
             assertNull(state.error)
-            val type = object : TypeToken<Map<String, Any>>() {}.type
-            val parsed = Gson().fromJson<Map<String, Any>>(state.text, type)
+            val type = object : TypeToken<Map<String, Any?>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any?>>(state.text, type)
             assertEquals("bar", parsed["foo"])
+            assertEquals(2.0, parsed["count"])
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `load character variables reads legacy TavernHelper variables`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val wrapper =
+                mapOf(
+                    "data" to
+                        mapOf(
+                            "extensions" to
+                                mapOf(
+                                    "TavernHelper_characterScriptVariables" to
+                                        mapOf(
+                                            "foo" to "legacy",
+                                            "count" to 2,
+                                        ),
+                                ),
+                        ),
+                )
+            val cardRepo = FakeCardRepository(wrapper)
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = cardRepo,
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.loadVariables(VariablesScope.Character, emptyList())
+            advanceUntilIdle()
+
+            val state = vm.variablesUiState.value.character
+            assertFalse(state.isLoading)
+            assertNull(state.error)
+            val type = object : TypeToken<Map<String, Any?>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any?>>(state.text, type)
+            assertEquals("legacy", parsed["foo"])
+            assertEquals(2.0, parsed["count"])
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `load character variables reads inline tavern helper`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val wrapper =
+                mapOf(
+                    "data" to
+                        mapOf(
+                            "tavern_helper" to
+                                mapOf(
+                                    "variables" to
+                                        mapOf(
+                                            "foo" to "inline",
+                                            "count" to 2,
+                                        ),
+                                ),
+                        ),
+                )
+            val cardRepo = FakeCardRepository(wrapper)
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = cardRepo,
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.loadVariables(VariablesScope.Character, emptyList())
+            advanceUntilIdle()
+
+            val state = vm.variablesUiState.value.character
+            assertFalse(state.isLoading)
+            assertNull(state.error)
+            val type = object : TypeToken<Map<String, Any?>>() {}.type
+            val parsed = Gson().fromJson<Map<String, Any?>>(state.text, type)
+            assertEquals("inline", parsed["foo"])
             assertEquals(2.0, parsed["count"])
             collectJob.cancel()
         }
@@ -965,6 +1094,61 @@ class ChatViewModelTest : BaseUnitTest() {
             val tavernHelper = extensions["tavern_helper"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
             val vars = tavernHelper["variables"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
             assertEquals("ok", vars["mood"])
+            collectJob.cancel()
+        }
+
+    @Test
+    fun `save character variables updates all tavern helper variable keys`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = FakeChatRepository()
+            val wrapper =
+                mapOf(
+                    "data" to
+                        mapOf(
+                            "extensions" to
+                                mapOf(
+                                    "tavern_helper" to
+                                        mapOf(
+                                            "variables" to mapOf("foo" to "old"),
+                                            "character_variables" to mapOf("foo" to "legacy"),
+                                            "characterScriptVariables" to mapOf("foo" to "legacy2"),
+                                        ),
+                                ),
+                        ),
+                )
+            val cardRepo = FakeCardRepository(wrapper)
+            val vm =
+                ChatViewModel(
+                    chatRepository = repo,
+                    sendUserMessage = SendUserMessageUseCase(repo),
+                    characterRepository = FakeCharacterRepository(),
+                    cardRepository = cardRepo,
+                    chatSessionStore = FakeChatSessionStore(),
+                    userPreferencesStore = FakeUserPreferencesStore(),
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = AllowAllAccessManager(),
+                            characterRepository = FakeCharacterRepository(),
+                        ),
+                )
+            val collectJob = backgroundScope.launch { vm.variablesUiState.collect() }
+
+            vm.updateVariablesText(VariablesScope.Character, """{"mood":"ok"}""")
+            vm.saveVariables(VariablesScope.Character, emptyList())
+            advanceUntilIdle()
+
+            val updated = cardRepo.updatedWrapper ?: emptyMap()
+            val data = updated["data"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            val extensions = data["extensions"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            val tavernHelper = extensions["tavern_helper"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            val vars = tavernHelper["variables"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            val characterVars =
+                tavernHelper["character_variables"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            val scriptVars =
+                tavernHelper["characterScriptVariables"] as? Map<*, *> ?: emptyMap<Any?, Any?>()
+            assertEquals("ok", vars["mood"])
+            assertEquals("ok", characterVars["mood"])
+            assertEquals("ok", scriptVars["mood"])
             collectJob.cancel()
         }
 

@@ -6,6 +6,7 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.domain.model.NotificationItem
 import com.stproject.client.android.domain.repository.NotificationRepository
 import com.stproject.client.android.domain.repository.UnreadCounts
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
@@ -31,7 +32,7 @@ class NotificationsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -47,10 +48,11 @@ class NotificationsViewModel
                     }
                     val unread = notificationRepository.getUnreadCounts()
                     val result = notificationRepository.listNotifications(pageNum = 1, pageSize = 50)
+                    val filtered = filterByContentAccess(result.items)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            items = result.items,
+                            items = filtered,
                             hasMore = result.hasMore,
                             pageNum = 1,
                             unreadCounts = unread,
@@ -72,7 +74,7 @@ class NotificationsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -85,10 +87,11 @@ class NotificationsViewModel
                         return@launch
                     }
                     val result = notificationRepository.listNotifications(pageNum = nextPage, pageSize = 50)
+                    val filtered = filterByContentAccess(result.items)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            items = it.items + result.items,
+                            items = it.items + filtered,
                             hasMore = result.hasMore,
                             pageNum = nextPage,
                         )
@@ -107,7 +110,7 @@ class NotificationsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -138,7 +141,7 @@ class NotificationsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -161,6 +164,28 @@ class NotificationsViewModel
                     e.rethrowIfCancellation()
                     _uiState.update { it.copy(isLoading = false, error = "unexpected error") }
                 }
+            }
+        }
+
+        private suspend fun filterByContentAccess(
+            items: List<NotificationItem>,
+        ): List<NotificationItem> {
+            if (items.isEmpty()) return items
+            return items.filter { item ->
+                if (item.type.equals("system", ignoreCase = true)) {
+                    return@filter true
+                }
+                val content = item.contentMeta
+                val memberId = content?.characterId?.trim()?.takeIf { it.isNotEmpty() }
+                val decision =
+                    resolveContentAccess.execute(
+                        memberId = memberId,
+                        isNsfwHint = content?.isNsfw,
+                        ageRatingHint = content?.moderationAgeRating,
+                        tags = content?.tags,
+                        requireMetadata = true,
+                    )
+                decision is ContentAccessDecision.Allowed
             }
         }
     }

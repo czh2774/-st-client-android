@@ -10,9 +10,9 @@ data class ChatCompletionRequestDto(
     val clientMessageId: String? = null,
     val clientAssistantMessageId: String? = null,
     @SerializedName("latest_variables")
-    val latestVariables: Map<String, Any>? = null,
+    val latestVariables: Map<String, Any?>? = null,
     @SerializedName("global_variables")
-    val globalVariables: Map<String, Any>? = null,
+    val globalVariables: Map<String, Any?>? = null,
 )
 
 data class ChatCompletionResponseDto(

@@ -234,7 +234,7 @@ class ShopViewModelTest : BaseUnitTest() {
             updates.emit(BillingPurchaseUpdate(result, listOf(purchase)))
             advanceUntilIdle()
 
-            assertEquals("purchase acknowledgement failed", viewModel.uiState.value.error)
+            assertEquals("purchase acknowledgement failed", viewModel.uiState.value.error?.message)
         }
 
     @Test
@@ -251,7 +251,12 @@ class ShopViewModelTest : BaseUnitTest() {
             val repo =
                 FakeIapRepository(
                     kind = "credits",
-                    transactionResult = IapTransactionResult(ok = false, status = "verification_failed", serverTimeMs = 0),
+                    transactionResult =
+                        IapTransactionResult(
+                            ok = false,
+                            status = "verification_failed",
+                            serverTimeMs = 0,
+                        ),
                 )
             val viewModel = createViewModel(repo, billingManager)
 
@@ -275,7 +280,7 @@ class ShopViewModelTest : BaseUnitTest() {
             updates.emit(BillingPurchaseUpdate(result, listOf(purchase)))
             advanceUntilIdle()
 
-            assertEquals("verification_failed", viewModel.uiState.value.error)
+            assertEquals("verification_failed", viewModel.uiState.value.error?.message)
             coVerify(exactly = 0) { billingManager.consumePurchase(any()) }
             coVerify(exactly = 0) { billingManager.acknowledgePurchase(any()) }
         }
@@ -339,6 +344,6 @@ class ShopViewModelTest : BaseUnitTest() {
             viewModel.restorePurchases()
             advanceUntilIdle()
 
-            assertEquals("No purchases to restore.", viewModel.uiState.value.error)
+            assertEquals("No purchases to restore.", viewModel.uiState.value.error?.message)
         }
 }

@@ -15,39 +15,12 @@ data class A2UIClientCapabilities(
 )
 
 object A2UIClientCapabilitiesProvider {
-    const val CATALOG_ID = "https://stproject.ai/a2ui/v0.8/catalogs/st-mobile-safe.json"
-    private val COMPONENTS =
-        listOf(
-            "Text",
-            "Image",
-            "Button",
-            "ChoiceButtons",
-            "Form",
-            "Sheet",
-            "PurchaseCTA",
-            "OpenSettings",
-            "Column",
-            "Row",
-            "Group",
-        )
-    private val ACTIONS =
-        listOf(
-            "sendMessage",
-            "cancel",
-            "continue",
-            "regenerate",
-            "setVariable",
-            "navigate",
-            "purchase",
-            "deleteMessage",
-        )
-
     val capabilities: A2UIClientCapabilities by lazy {
         A2UIClientCapabilities(
             schemaVersion = 1,
-            supportedCatalogIds = listOf(CATALOG_ID),
-            components = COMPONENTS,
-            actions = ACTIONS,
+            supportedCatalogIds = listOf(A2UICatalog.CATALOG_ID),
+            components = A2UICatalog.COMPONENTS,
+            actions = A2UICatalog.ACTIONS,
             platform = "android",
             mode = "full",
             clientVersion = BuildConfig.VERSION_NAME,

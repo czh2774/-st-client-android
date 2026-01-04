@@ -1,6 +1,7 @@
 package com.stproject.client.android.features.compliance
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -195,6 +196,151 @@ class NsfwGatingTest {
     }
 
     @Test
+    fun exploreShareCodeBlocksTags() {
+        val blockedBody = composeRule.activity.getString(R.string.content_blocked_filters_body)
+        val contentGate =
+            ContentGate(
+                consentLoaded = true,
+                consentRequired = false,
+                ageVerified = true,
+                allowNsfwPreference = true,
+                blockedTags = listOf("gore"),
+            )
+        val repo =
+            FakeCharacterRepository(
+                items = emptyList(),
+                details =
+                    mapOf(
+                        "char-1" to taggedDetail("char-1", listOf("gore")),
+                    ),
+                shareCodes = mapOf("code" to "char-1"),
+            )
+        val exploreViewModel =
+            ExploreViewModel(
+                characterRepository = repo,
+                resolveContentAccess =
+                    ResolveContentAccessUseCase(
+                        accessManager = AllowAllAccessManager(),
+                        characterRepository = repo,
+                    ),
+                followCharacterUseCase = createFollowCharacterUseCase(repo),
+            ).apply {
+                setNsfwAllowed(true)
+            }
+        val startChatCount = AtomicInteger(0)
+        val moderationViewModel =
+            ModerationViewModel(
+                reportRepository = FakeReportRepository(),
+                chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase = createBlockCharacterUseCase(repo),
+            )
+
+        composeRule.setContent {
+            ExploreScreen(
+                viewModel = exploreViewModel,
+                onStartChat = { _, _ -> startChatCount.incrementAndGet() },
+                onOpenDetail = {},
+                moderationViewModel = moderationViewModel,
+                contentGate = contentGate,
+            )
+        }
+
+        composeRule.runOnIdle {
+            exploreViewModel.onShareCodeChanged("code")
+            exploreViewModel.resolveShareCode()
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(blockedBody).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText(blockedBody).assertIsDisplayed()
+        composeRule.runOnIdle {
+            if (startChatCount.get() != 0) {
+                throw AssertionError("Expected share code to be blocked by tags.")
+            }
+        }
+    }
+
+    @Test
+    fun exploreHidesTaggedItems() {
+        val blockedName = "Blocked"
+        val visibleName = "Visible"
+        val contentGate =
+            ContentGate(
+                consentLoaded = true,
+                consentRequired = false,
+                ageVerified = true,
+                allowNsfwPreference = true,
+                blockedTags = listOf("gore"),
+            )
+        val repo =
+            FakeCharacterRepository(
+                items =
+                    listOf(
+                        CharacterSummary(
+                            id = "char-1",
+                            name = blockedName,
+                            description = "desc",
+                            avatarUrl = null,
+                            tags = listOf("gore"),
+                            isNsfw = false,
+                            totalFollowers = 0,
+                            isFollowed = false,
+                        ),
+                        CharacterSummary(
+                            id = "char-2",
+                            name = visibleName,
+                            description = "desc",
+                            avatarUrl = null,
+                            tags = listOf("safe"),
+                            isNsfw = false,
+                            totalFollowers = 0,
+                            isFollowed = false,
+                        ),
+                    ),
+                details =
+                    mapOf(
+                        "char-1" to taggedDetail("char-1", listOf("gore")),
+                        "char-2" to taggedDetail("char-2", listOf("safe")),
+                    ),
+            )
+        val exploreViewModel =
+            ExploreViewModel(
+                characterRepository = repo,
+                resolveContentAccess =
+                    ResolveContentAccessUseCase(
+                        accessManager = AllowAllAccessManager(),
+                        characterRepository = repo,
+                    ),
+                followCharacterUseCase = createFollowCharacterUseCase(repo),
+            ).apply {
+                setNsfwAllowed(true)
+            }
+        val moderationViewModel =
+            ModerationViewModel(
+                reportRepository = FakeReportRepository(),
+                chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase = createBlockCharacterUseCase(repo),
+            )
+
+        composeRule.setContent {
+            ExploreScreen(
+                viewModel = exploreViewModel,
+                onStartChat = { _, _ -> },
+                onOpenDetail = {},
+                moderationViewModel = moderationViewModel,
+                contentGate = contentGate,
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            !exploreViewModel.uiState.value.isLoading
+        }
+        composeRule.onAllNodesWithText(blockedName).assertCountEquals(0)
+        composeRule.onNodeWithText(visibleName).assertIsDisplayed()
+    }
+
+    @Test
     fun characterDetailDisablesStartChatWhenNsfwBlocked() {
         val startChatLabel = composeRule.activity.getString(R.string.common_start_chat)
         val matureDisabledInline = composeRule.activity.getString(R.string.content_mature_disabled_inline)
@@ -291,11 +437,26 @@ class NsfwGatingTest {
                         characterRepository = characterRepo,
                     ),
             )
+        val moderationViewModel =
+            ModerationViewModel(
+                reportRepository = FakeReportRepository(),
+                chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase =
+                    BlockCharacterUseCase(
+                        characterRepository = characterRepo,
+                        resolveContentAccess =
+                            ResolveContentAccessUseCase(
+                                accessManager = AllowAllAccessManager(),
+                                characterRepository = characterRepo,
+                            ),
+                    ),
+            )
         val openCount = AtomicInteger(0)
 
         composeRule.setContent {
             ChatsListScreen(
                 viewModel = viewModel,
+                moderationViewModel = moderationViewModel,
                 onOpenSession = { openCount.incrementAndGet() },
                 contentGate = contentGate,
             )
@@ -309,6 +470,83 @@ class NsfwGatingTest {
         composeRule.runOnIdle {
             if (openCount.get() != 0) {
                 throw AssertionError("Expected open session to be blocked.")
+            }
+        }
+    }
+
+    @Test
+    fun chatListHidesTaggedSessions() {
+        val openLabel = composeRule.activity.getString(R.string.common_open)
+        val contentGate =
+            ContentGate(
+                consentLoaded = true,
+                consentRequired = false,
+                ageVerified = true,
+                allowNsfwPreference = true,
+                blockedTags = listOf("gore"),
+            )
+        val chatRepo =
+            FakeChatRepository(
+                sessions =
+                    listOf(
+                        ChatSessionSummary(
+                            sessionId = "s1",
+                            primaryMemberId = "char-1",
+                            displayName = "Test",
+                            updatedAt = null,
+                        ),
+                    ),
+            )
+        val characterRepo =
+            FakeCharacterRepository(
+                items = emptyList(),
+                details =
+                    mapOf(
+                        "char-1" to taggedDetail("char-1", listOf("gore")),
+                    ),
+            )
+        val viewModel =
+            ChatsListViewModel(
+                chatRepository = chatRepo,
+                characterRepository = characterRepo,
+                resolveContentAccess =
+                    ResolveContentAccessUseCase(
+                        accessManager = AllowAllAccessManager(),
+                        characterRepository = characterRepo,
+                    ),
+            )
+        val moderationViewModel =
+            ModerationViewModel(
+                reportRepository = FakeReportRepository(),
+                chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase =
+                    BlockCharacterUseCase(
+                        characterRepository = characterRepo,
+                        resolveContentAccess =
+                            ResolveContentAccessUseCase(
+                                accessManager = AllowAllAccessManager(),
+                                characterRepository = characterRepo,
+                            ),
+                    ),
+            )
+        val openCount = AtomicInteger(0)
+
+        composeRule.setContent {
+            ChatsListScreen(
+                viewModel = viewModel,
+                moderationViewModel = moderationViewModel,
+                onOpenSession = { openCount.incrementAndGet() },
+                contentGate = contentGate,
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            !viewModel.uiState.value.isLoading
+        }
+        composeRule.onAllNodesWithText(openLabel).assertCountEquals(0)
+        composeRule.runOnIdle {
+            if (openCount.get() != 0) {
+                throw AssertionError("Expected tagged sessions to be hidden.")
             }
         }
     }
@@ -370,6 +608,66 @@ class NsfwGatingTest {
             composeRule.onAllNodesWithText(noticeText).fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithText(noticeText).assertIsDisplayed()
+    }
+
+    @Test
+    fun chatBlocksTagsInSession() {
+        val blockedBody = composeRule.activity.getString(R.string.content_blocked_filters_body)
+        val contentGate =
+            ContentGate(
+                consentLoaded = true,
+                consentRequired = false,
+                ageVerified = true,
+                allowNsfwPreference = true,
+                blockedTags = listOf("gore"),
+            )
+        val chatRepo = FakeChatRepository(sessions = emptyList())
+        val characterRepo =
+            FakeCharacterRepository(
+                items = emptyList(),
+                details =
+                    mapOf(
+                        "char-1" to taggedDetail("char-1", listOf("gore")),
+                    ),
+            )
+        val chatViewModel =
+            ChatViewModel(
+                chatRepository = chatRepo,
+                sendUserMessage = SendUserMessageUseCase(chatRepo),
+                characterRepository = characterRepo,
+                cardRepository = FakeCardRepository(),
+                chatSessionStore = FakeChatSessionStore(),
+                userPreferencesStore = FakeUserPreferencesStore(),
+                resolveContentAccess =
+                    ResolveContentAccessUseCase(
+                        accessManager = AllowAllAccessManager(),
+                        characterRepository = characterRepo,
+                    ),
+            )
+        val moderationViewModel =
+            ModerationViewModel(
+                reportRepository = FakeReportRepository(),
+                chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase = createBlockCharacterUseCase(characterRepo),
+            )
+
+        composeRule.setContent {
+            ChatScreen(
+                viewModel = chatViewModel,
+                moderationViewModel = moderationViewModel,
+                onBackToList = {},
+                contentGate = contentGate,
+            )
+        }
+
+        composeRule.runOnIdle {
+            chatViewModel.startNewChat("char-1")
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText(blockedBody).fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText(blockedBody).assertIsDisplayed()
     }
 }
 
@@ -445,13 +743,13 @@ private class FakeChatRepository(
         swipeId: Int?,
     ) = Unit
 
-    override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+    override suspend fun loadSessionVariables(): Map<String, Any?> = emptyMap()
 
-    override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
+    override suspend fun updateSessionVariables(variables: Map<String, Any?>) = Unit
 
     override suspend fun updateMessageVariables(
         messageId: String,
-        swipesData: List<Map<String, Any>>,
+        swipesData: List<Map<String, Any?>>,
     ) = Unit
 
     override suspend fun clearLocalSession() {
@@ -520,8 +818,8 @@ private class FakeUserPreferencesStore : UserPreferencesStore {
     private var themeMode = com.stproject.client.android.core.theme.ThemeMode.System
     private var languageTag: String? = null
     private var presetId: String? = null
-    private var globalVariables: Map<String, Any> = emptyMap()
-    private val presetVariables = mutableMapOf<String, Map<String, Any>>()
+    private var globalVariables: Map<String, Any?> = emptyMap()
+    private val presetVariables = mutableMapOf<String, Map<String, Any?>>()
 
     override fun isNsfwAllowed(): Boolean = nsfwAllowed
 
@@ -547,19 +845,19 @@ private class FakeUserPreferencesStore : UserPreferencesStore {
         this.presetId = presetId
     }
 
-    override fun getGlobalVariables(): Map<String, Any> = globalVariables
+    override fun getGlobalVariables(): Map<String, Any?> = globalVariables
 
-    override fun setGlobalVariables(variables: Map<String, Any>) {
+    override fun setGlobalVariables(variables: Map<String, Any?>) {
         globalVariables = variables
     }
 
-    override fun getPresetVariables(presetId: String): Map<String, Any> {
+    override fun getPresetVariables(presetId: String): Map<String, Any?> {
         return presetVariables[presetId] ?: emptyMap()
     }
 
     override fun setPresetVariables(
         presetId: String,
-        variables: Map<String, Any>,
+        variables: Map<String, Any?>,
     ) {
         presetVariables[presetId] = variables
     }
@@ -680,6 +978,22 @@ private fun nsfwDetail(id: String): CharacterDetail {
         tags = emptyList(),
         creatorName = null,
         isNsfw = true,
+        totalFollowers = 0,
+        isFollowed = false,
+    )
+}
+
+private fun taggedDetail(
+    id: String,
+    tags: List<String>,
+): CharacterDetail {
+    return CharacterDetail(
+        id = id,
+        name = "Tagged",
+        description = "desc",
+        tags = tags,
+        creatorName = null,
+        isNsfw = false,
         totalFollowers = 0,
         isFollowed = false,
     )

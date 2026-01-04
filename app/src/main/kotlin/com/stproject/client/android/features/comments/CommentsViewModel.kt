@@ -9,7 +9,6 @@ import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.domain.model.Comment
 import com.stproject.client.android.domain.model.CommentLikeResult
 import com.stproject.client.android.domain.model.CommentSort
-import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.CommentRepository
 import com.stproject.client.android.domain.repository.UserRepository
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
@@ -25,7 +24,6 @@ class CommentsViewModel
     @Inject
     constructor(
         private val commentRepository: CommentRepository,
-        private val characterRepository: CharacterRepository,
         private val userRepository: UserRepository,
         private val resolveContentAccess: ResolveContentAccessUseCase,
     ) : ViewModel() {
@@ -51,11 +49,30 @@ class CommentsViewModel
             }
             viewModelScope.launch {
                 try {
+                    val baseAccess = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
+                    if (baseAccess is ContentAccessDecision.Blocked) {
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                items = emptyList(),
+                                total = 0,
+                                hasMore = false,
+                                accessError = baseAccess.userMessage(),
+                            )
+                        }
+                        return@launch
+                    }
+                    val currentUserId = runCatching { userRepository.getMe().id }.getOrNull()
+                    val list = commentRepository.listComments(cleanId, _uiState.value.sort, 1, pageSize)
+                    val summary = list.character
+                    val summaryId = summary?.characterId?.trim()?.takeIf { it.isNotEmpty() }
                     val access =
                         resolveContentAccess.execute(
-                            cleanId,
-                            _uiState.value.characterIsNsfw,
-                            ageRatingHint = _uiState.value.characterAgeRating,
+                            summaryId,
+                            summary?.isNsfw,
+                            ageRatingHint = summary?.moderationAgeRating,
+                            tags = summary?.tags,
+                            requireMetadata = true,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
@@ -64,14 +81,14 @@ class CommentsViewModel
                                 items = emptyList(),
                                 total = 0,
                                 hasMore = false,
+                                characterIsNsfw = summary?.isNsfw,
+                                characterAgeRating = summary?.moderationAgeRating,
+                                characterTags = summary?.tags ?: emptyList(),
                                 accessError = access.userMessage(),
                             )
                         }
                         return@launch
                     }
-                    val detail = characterRepository.getCharacterDetail(cleanId)
-                    val currentUserId = runCatching { userRepository.getMe().id }.getOrNull()
-                    val list = commentRepository.listComments(cleanId, _uiState.value.sort, 1, pageSize)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -79,9 +96,9 @@ class CommentsViewModel
                             total = list.total,
                             hasMore = list.hasMore,
                             pageNum = 1,
-                            characterName = detail.name,
-                            characterIsNsfw = detail.isNsfw,
-                            characterAgeRating = detail.moderationAgeRating,
+                            characterIsNsfw = summary?.isNsfw,
+                            characterAgeRating = summary?.moderationAgeRating,
+                            characterTags = summary?.tags ?: emptyList(),
                             currentUserId = currentUserId ?: it.currentUserId,
                         )
                     }
@@ -118,6 +135,8 @@ class CommentsViewModel
                             characterId,
                             state.characterIsNsfw,
                             ageRatingHint = state.characterAgeRating,
+                            tags = state.characterTags,
+                            requireMetadata = true,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
@@ -187,6 +206,8 @@ class CommentsViewModel
                             characterId,
                             state.characterIsNsfw,
                             ageRatingHint = state.characterAgeRating,
+                            tags = state.characterTags,
+                            requireMetadata = true,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
@@ -228,6 +249,8 @@ class CommentsViewModel
                             characterId,
                             state.characterIsNsfw,
                             ageRatingHint = state.characterAgeRating,
+                            tags = state.characterTags,
+                            requireMetadata = true,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update { it.copy(accessError = access.userMessage()) }
@@ -254,6 +277,8 @@ class CommentsViewModel
                             characterId,
                             state.characterIsNsfw,
                             ageRatingHint = state.characterAgeRating,
+                            tags = state.characterTags,
+                            requireMetadata = true,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update { it.copy(accessError = access.userMessage()) }

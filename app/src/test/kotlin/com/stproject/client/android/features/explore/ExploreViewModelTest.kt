@@ -68,6 +68,8 @@ class ExploreViewModelTest : BaseUnitTest() {
             memberId: String?,
             isNsfwHint: Boolean?,
             ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
+            tags: List<String>?,
+            requireMetadata: Boolean,
         ): ContentAccessDecision {
             return ContentAccessDecision.Blocked(
                 com.stproject.client.android.core.compliance.ContentBlockReason.NSFW_DISABLED,

@@ -85,13 +85,13 @@ class ChatsListViewModelTest : BaseUnitTest() {
             swipeId: Int?,
         ) = Unit
 
-        override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+        override suspend fun loadSessionVariables(): Map<String, Any?> = emptyMap()
 
-        override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
+        override suspend fun updateSessionVariables(variables: Map<String, Any?>) = Unit
 
         override suspend fun updateMessageVariables(
             messageId: String,
-            swipesData: List<Map<String, Any>>,
+            swipesData: List<Map<String, Any?>>,
         ) = Unit
 
         override suspend fun clearLocalSession() = Unit
@@ -171,6 +171,8 @@ class ChatsListViewModelTest : BaseUnitTest() {
             memberId: String?,
             isNsfwHint: Boolean?,
             ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
+            tags: List<String>?,
+            requireMetadata: Boolean,
         ): ContentAccessDecision {
             return ContentAccessDecision.Blocked(ContentBlockReason.NSFW_DISABLED)
         }
@@ -210,7 +212,7 @@ class ChatsListViewModelTest : BaseUnitTest() {
                             characterRepository = characterRepo,
                         ),
                 )
-            viewModel.load(allowNsfw = false)
+            viewModel.load(allowNsfw = false, blockedTags = emptyList())
             advanceUntilIdle()
 
             val resolved = viewModel.uiState.value.items
@@ -243,7 +245,7 @@ class ChatsListViewModelTest : BaseUnitTest() {
                             characterRepository = characterRepo,
                         ),
                 )
-            viewModel.load(allowNsfw = true)
+            viewModel.load(allowNsfw = true, blockedTags = emptyList())
             advanceUntilIdle()
 
             assertEquals(0, characterRepo.detailCalls)
@@ -261,7 +263,7 @@ class ChatsListViewModelTest : BaseUnitTest() {
                     resolveContentAccess = DenyAccessUseCase(),
                 )
 
-            viewModel.load(allowNsfw = false)
+            viewModel.load(allowNsfw = false, blockedTags = emptyList())
             advanceUntilIdle()
 
             assertTrue(viewModel.uiState.value.error?.contains("mature") == true)
@@ -294,7 +296,7 @@ class ChatsListViewModelTest : BaseUnitTest() {
                         ),
                 )
 
-            viewModel.load(allowNsfw = false)
+            viewModel.load(allowNsfw = false, blockedTags = emptyList())
             advanceUntilIdle()
 
             val resolved = viewModel.uiState.value.lastSession

@@ -45,6 +45,10 @@ import com.stproject.client.android.features.auth.AuthScreen
 import com.stproject.client.android.features.auth.AuthViewModel
 import com.stproject.client.android.features.characters.CharacterDetailScreen
 import com.stproject.client.android.features.characters.CharacterDetailViewModel
+import com.stproject.client.android.features.badges.CreatorBadgesScreen
+import com.stproject.client.android.features.badges.CreatorBadgesViewModel
+import com.stproject.client.android.features.badges.MyBadgesScreen
+import com.stproject.client.android.features.badges.MyBadgesViewModel
 import com.stproject.client.android.features.chat.ChatScreen
 import com.stproject.client.android.features.chat.ChatShareScreen
 import com.stproject.client.android.features.chat.ChatShareViewModel
@@ -70,6 +74,8 @@ import com.stproject.client.android.features.notifications.NotificationsScreen
 import com.stproject.client.android.features.notifications.NotificationsViewModel
 import com.stproject.client.android.features.profile.ProfileScreen
 import com.stproject.client.android.features.profile.ProfileViewModel
+import com.stproject.client.android.features.personas.PersonasScreen
+import com.stproject.client.android.features.personas.PersonasViewModel
 import com.stproject.client.android.features.settings.AgeVerificationDialog
 import com.stproject.client.android.features.settings.BackgroundsScreen
 import com.stproject.client.android.features.settings.BackgroundsViewModel
@@ -106,6 +112,10 @@ private const val COMMENTS_ROUTE_PATTERN = "comments/{characterId}"
 private const val MODEL_PRESETS_ROUTE = "settings/model-presets"
 private const val SETTINGS_BACKGROUNDS_ROUTE = "settings/backgrounds"
 private const val SETTINGS_DECORATIONS_ROUTE = "settings/decorations"
+private const val SETTINGS_PERSONAS_ROUTE = "settings/personas"
+private const val SETTINGS_BADGES_ROUTE = "settings/fan-badges"
+private const val CREATOR_BADGES_ROUTE = "creators/badges"
+private const val CREATOR_BADGES_ROUTE_PATTERN = "creators/badges/{creatorId}"
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -132,6 +142,9 @@ class MainActivity : ComponentActivity() {
     private val decorationsViewModel: DecorationsViewModel by viewModels()
     private val worldInfoViewModel: WorldInfoViewModel by viewModels()
     private val commentsViewModel: CommentsViewModel by viewModels()
+    private val personasViewModel: PersonasViewModel by viewModels()
+    private val myBadgesViewModel: MyBadgesViewModel by viewModels()
+    private val creatorBadgesViewModel: CreatorBadgesViewModel by viewModels()
     private val pendingShareCode = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -190,6 +203,9 @@ class MainActivity : ComponentActivity() {
                             decorationsViewModel = decorationsViewModel,
                             complianceState = complianceState,
                             commentsViewModel = commentsViewModel,
+                            personasViewModel = personasViewModel,
+                            myBadgesViewModel = myBadgesViewModel,
+                            creatorBadgesViewModel = creatorBadgesViewModel,
                             onLogout = authViewModel::onLogout,
                             incomingShareCode = incomingShareCode,
                             onShareCodeConsumed = { pendingShareCode.value = null },
@@ -234,6 +250,9 @@ private fun AuthenticatedContent(
     backgroundsViewModel: BackgroundsViewModel,
     decorationsViewModel: DecorationsViewModel,
     commentsViewModel: CommentsViewModel,
+    personasViewModel: PersonasViewModel,
+    myBadgesViewModel: MyBadgesViewModel,
+    creatorBadgesViewModel: CreatorBadgesViewModel,
     complianceState: com.stproject.client.android.features.settings.ComplianceUiState,
     onLogout: () -> Unit,
     incomingShareCode: String?,
@@ -245,9 +264,17 @@ private fun AuthenticatedContent(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val activeRoute = backStackEntry?.destination?.route ?: MainTab.Explore.route
 
+    fun guardedNavigate(
+        route: String,
+        builder: androidx.navigation.NavOptionsBuilder.() -> Unit = {},
+    ) {
+        if (!contentAllowed) return
+        navController.navigate(route, builder)
+    }
+
     fun navigateTo(tab: MainTab) {
         if (activeRoute == tab.route) return
-        navController.navigate(tab.route) {
+        guardedNavigate(tab.route) {
             launchSingleTop = true
             restoreState = true
             popUpTo(MainTab.Explore.route) {
@@ -259,6 +286,8 @@ private fun AuthenticatedContent(
     fun characterDetailRoute(characterId: String): String = "$CHARACTER_DETAIL_ROUTE/${characterId.trim()}"
 
     fun creatorDetailRoute(creatorId: String): String = "$CREATOR_DETAIL_ROUTE/${creatorId.trim()}"
+
+    fun creatorBadgesRoute(creatorId: String): String = "$CREATOR_BADGES_ROUTE/${creatorId.trim()}"
 
     fun chatShareRoute(shareCode: String): String = "$CHAT_SHARE_ROUTE?shareCode=${Uri.encode(shareCode)}"
 
@@ -276,7 +305,7 @@ private fun AuthenticatedContent(
     LaunchedEffect(incomingShareCode, contentAllowed) {
         val code = incomingShareCode?.trim()?.takeIf { it.isNotEmpty() }
         if (code != null && contentAllowed) {
-            navController.navigate(chatShareRoute(code)) {
+            guardedNavigate(chatShareRoute(code)) {
                 launchSingleTop = true
             }
             onShareCodeConsumed()
@@ -337,7 +366,7 @@ private fun AuthenticatedContent(
                                     memberId,
                                     shareCode,
                                     onSuccess = {
-                                        navController.navigate(CHAT_SESSION_ROUTE)
+                                        guardedNavigate(CHAT_SESSION_ROUTE)
                                         if (!shareCode.isNullOrBlank()) {
                                             onShareCodeConsumed()
                                         }
@@ -345,7 +374,7 @@ private fun AuthenticatedContent(
                                 )
                             },
                             onOpenDetail = { characterId ->
-                                navController.navigate(characterDetailRoute(characterId))
+                                guardedNavigate(characterDetailRoute(characterId))
                             },
                             moderationViewModel = moderationViewModel,
                             contentGate = contentGate,
@@ -368,11 +397,11 @@ private fun AuthenticatedContent(
                                 chatViewModel.startNewChat(
                                     memberId,
                                     shareCode,
-                                    onSuccess = { navController.navigate(CHAT_SESSION_ROUTE) },
+                                    onSuccess = { guardedNavigate(CHAT_SESSION_ROUTE) },
                                 )
                             },
                             onOpenComments = { id ->
-                                navController.navigate(commentsRoute(id))
+                                guardedNavigate(commentsRoute(id))
                             },
                             contentGate = contentGate,
                         )
@@ -380,11 +409,12 @@ private fun AuthenticatedContent(
                     composable(MainTab.Chat.route) {
                         ChatsListScreen(
                             viewModel = chatsListViewModel,
+                            moderationViewModel = moderationViewModel,
                             onOpenSession = { summary ->
                                 chatViewModel.openSession(
                                     summary.sessionId,
                                     summary.primaryMemberId,
-                                    onSuccess = { navController.navigate(CHAT_SESSION_ROUTE) },
+                                    onSuccess = { guardedNavigate(CHAT_SESSION_ROUTE) },
                                 )
                             },
                             contentGate = contentGate,
@@ -417,14 +447,15 @@ private fun AuthenticatedContent(
                             viewModel = chatShareViewModel,
                             chatViewModel = chatViewModel,
                             onBackToExplore = { navigateTo(MainTab.Explore) },
-                            onOpenChat = { navController.navigate(CHAT_SESSION_ROUTE) },
+                            onOpenChat = { guardedNavigate(CHAT_SESSION_ROUTE) },
                             onShareCodeConsumed = onShareCodeConsumed,
+                            contentGate = contentGate,
                         )
                     }
                     composable(MainTab.Profile.route) {
                         ProfileScreen(
                             viewModel = profileViewModel,
-                            onOpenWorldInfo = { navController.navigate(WORLDINFO_ROUTE) },
+                            onOpenWorldInfo = { guardedNavigate(WORLDINFO_ROUTE) },
                         )
                     }
                     composable(MainTab.Shop.route) {
@@ -438,12 +469,12 @@ private fun AuthenticatedContent(
                             viewModel = creatorsViewModel,
                             moderationViewModel = moderationViewModel,
                             onOpenCreator = { creatorId ->
-                                navController.navigate(creatorDetailRoute(creatorId))
+                                guardedNavigate(creatorDetailRoute(creatorId))
                             },
                             onOpenAssistant = {
-                                navController.navigate(CREATOR_ASSISTANT_LIST_ROUTE)
+                                guardedNavigate(CREATOR_ASSISTANT_LIST_ROUTE)
                             },
-                            onOpenCreateRole = { navController.navigate(CREATE_ROLE_ROUTE) },
+                            onOpenCreateRole = { guardedNavigate(CREATE_ROLE_ROUTE) },
                             contentGate = contentGate,
                         )
                     }
@@ -458,25 +489,47 @@ private fun AuthenticatedContent(
                         CreatorCharactersScreen(
                             creatorId = creatorId,
                             viewModel = creatorCharactersViewModel,
+                            moderationViewModel = moderationViewModel,
                             onBack = { navController.popBackStack() },
                             onStartChat = { memberId ->
                                 chatViewModel.startNewChat(
                                     memberId,
-                                    onSuccess = { navController.navigate(CHAT_SESSION_ROUTE) },
+                                    onSuccess = { guardedNavigate(CHAT_SESSION_ROUTE) },
                                 )
                             },
                             onOpenDetail = { characterId ->
-                                navController.navigate(characterDetailRoute(characterId))
+                                guardedNavigate(characterDetailRoute(characterId))
                             },
+                            onOpenBadges =
+                                if (PlayFeatureFlags.badgesEnabled) {
+                                    { guardedNavigate(creatorBadgesRoute(creatorId)) }
+                                } else {
+                                    null
+                                },
                             contentGate = contentGate,
+                        )
+                    }
+                    composable(
+                        route = CREATOR_BADGES_ROUTE_PATTERN,
+                        arguments =
+                            listOf(
+                                navArgument("creatorId") { type = NavType.StringType },
+                            ),
+                    ) { entry ->
+                        val creatorId = entry.arguments?.getString("creatorId").orEmpty()
+                        CreatorBadgesScreen(
+                            creatorId = creatorId,
+                            viewModel = creatorBadgesViewModel,
+                            onBack = { navController.popBackStack() },
                         )
                     }
                     composable(CREATOR_ASSISTANT_LIST_ROUTE) {
                         CreatorAssistantListScreen(
                             viewModel = creatorAssistantListViewModel,
+                            moderationViewModel = moderationViewModel,
                             onBack = { navController.popBackStack() },
                             onOpenSession = { sessionId ->
-                                navController.navigate(creatorAssistantChatRoute(sessionId))
+                                guardedNavigate(creatorAssistantChatRoute(sessionId))
                             },
                             contentGate = contentGate,
                         )
@@ -500,6 +553,7 @@ private fun AuthenticatedContent(
                         CreatorAssistantChatScreen(
                             sessionId = sessionId,
                             viewModel = creatorAssistantChatViewModel,
+                            moderationViewModel = moderationViewModel,
                             onBack = { navController.popBackStack() },
                             contentGate = contentGate,
                         )
@@ -507,6 +561,7 @@ private fun AuthenticatedContent(
                     composable(MainTab.Notifications.route) {
                         NotificationsScreen(
                             viewModel = notificationsViewModel,
+                            moderationViewModel = moderationViewModel,
                             contentGate = contentGate,
                         )
                     }
@@ -526,9 +581,24 @@ private fun AuthenticatedContent(
                             onAllowNsfwChanged = complianceViewModel::setAllowNsfw,
                             onThemeModeChanged = complianceViewModel::setThemeMode,
                             onLanguageTagChanged = complianceViewModel::setLanguageTag,
-                            onOpenModelPresets = { navController.navigate(MODEL_PRESETS_ROUTE) },
-                            onOpenBackgrounds = { navController.navigate(SETTINGS_BACKGROUNDS_ROUTE) },
-                            onOpenDecorations = { navController.navigate(SETTINGS_DECORATIONS_ROUTE) },
+                            onOpenModelPresets = { guardedNavigate(MODEL_PRESETS_ROUTE) },
+                            onOpenBackgrounds = { guardedNavigate(SETTINGS_BACKGROUNDS_ROUTE) },
+                            onOpenDecorations = { guardedNavigate(SETTINGS_DECORATIONS_ROUTE) },
+                            onOpenPersonas = { guardedNavigate(SETTINGS_PERSONAS_ROUTE) },
+                            showBadges = PlayFeatureFlags.badgesEnabled,
+                            onOpenBadges = { guardedNavigate(SETTINGS_BADGES_ROUTE) },
+                        )
+                    }
+                    composable(SETTINGS_PERSONAS_ROUTE) {
+                        PersonasScreen(
+                            viewModel = personasViewModel,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable(SETTINGS_BADGES_ROUTE) {
+                        MyBadgesScreen(
+                            viewModel = myBadgesViewModel,
+                            onBack = { navController.popBackStack() },
                         )
                     }
                     composable(MODEL_PRESETS_ROUTE) {

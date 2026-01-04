@@ -1,5 +1,7 @@
 package com.stproject.client.android.features.shop
 
+import com.stproject.client.android.core.network.AppError
+
 data class ShopProduct(
     val productId: String,
     val displayName: String,
@@ -12,7 +14,7 @@ data class ShopProduct(
 data class ShopUiState(
     val isLoading: Boolean = false,
     val products: List<ShopProduct> = emptyList(),
-    val error: String? = null,
+    val error: AppError? = null,
     val purchaseEnabled: Boolean = false,
     val purchaseDisabledReason: String? = null,
     val isRestoring: Boolean = false,

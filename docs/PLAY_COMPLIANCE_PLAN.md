@@ -58,7 +58,11 @@ Source of truth: `st-server-go` HTTP responses.
   - `ageVerified` (boolean) and `birthDate` (string): required for 18+ access.
 - Enforcement notes
   - Server hides NSFW characters when `ageVerified` is false.
-  - Client must still gate before rendering, even if server also filters.
+- Client must still gate before rendering, even if server also filters.
+
+## Backend Work Tracking
+- Server-side Play compliance tasks are tracked in:
+  - `st-server-go/PLAY_COMPLIANCE_BACKEND.md`
 
 ## UGC Safety Requirements
 - Reporting is available on:
@@ -81,6 +85,7 @@ Source of truth: `st-server-go` HTTP responses.
 - All deep links are gated by the access-control layer.
 - Report/block flows available on all UGC screens.
 - Data Safety form aligns with actual data collection and deletion behavior.
+- Play parity target list validated and excluded features disabled (see `PLAY_PARITY_TARGET.md`).
 
 ## Acceptance Criteria
 - No UI or deep link path can display or start NSFW content when blocked.

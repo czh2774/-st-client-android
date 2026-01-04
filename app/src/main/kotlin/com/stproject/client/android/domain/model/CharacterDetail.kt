@@ -6,7 +6,7 @@ data class CharacterDetail(
     val description: String,
     val tags: List<String>,
     val creatorName: String?,
-    val isNsfw: Boolean,
+    val isNsfw: Boolean?,
     val moderationAgeRating: AgeRating? = null,
     val totalFollowers: Int,
     val isFollowed: Boolean,

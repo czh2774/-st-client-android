@@ -40,6 +40,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.ContentGateBlockKind
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.domain.model.A2UIAction
@@ -88,6 +89,19 @@ fun ChatScreen(
     if (uiState.accessError != null) {
         ContentBlockedScreen(
             message = uiState.accessError ?: "",
+            onBack = onBackToList,
+        )
+        return
+    }
+    val blockKind =
+        contentGate.blockKind(
+            uiState.activeCharacterIsNsfw,
+            uiState.activeCharacterAgeRating,
+            uiState.activeCharacterTags,
+        )
+    if (blockKind == ContentGateBlockKind.TAGS_BLOCKED) {
+        ContentBlockedScreen(
+            message = stringResource(R.string.content_blocked_filters_body),
             onBack = onBackToList,
         )
         return

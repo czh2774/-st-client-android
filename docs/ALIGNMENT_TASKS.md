@@ -6,7 +6,9 @@ Priority scale:
 - P2: quality/UX
 
 Feature parity map (route/feature list):
-- `FEATURE_PARITY.md`
+- `FEATURE_PARITY.md` (general parity)
+Play parity target (single source of truth for Play builds):
+- `PLAY_PARITY_TARGET.md`
 Play compliance plan:
 - `PLAY_COMPLIANCE_PLAN.md`
 
@@ -35,11 +37,16 @@ Play compliance plan:
 
 ## P1 Product Parity
 - [x] Wallet + transactions (Android: read-only balance + transactions list)
-- [ ] Fan badges + creator badges
-- [ ] Red packet
-- [ ] Personas + masks + extensions
+- [x] Fan badges + creator badges
+- [ ] Red packet (Play: excluded until fixed-credit design passes policy review)
+- [x] Personas + masks
+- [ ] Extensions (permanently disabled on Android)
 - [x] Comments (basic list/create/like/delete/replies)
 - [x] Settings parity: backgrounds, decorations (model presets partial)
+
+## Play Parity Exclusions
+- Extensions: permanently disabled on Android.
+- Red packet: excluded from Play until a deterministic fixed-credit design passes policy review.
 
 ## P2 UX and Platform
 - [ ] Compose Navigation graph + deep links + state restoration (top-level tabs + chat/detail/creator/assistant routes moved to NavHost; remaining nested flows pending).

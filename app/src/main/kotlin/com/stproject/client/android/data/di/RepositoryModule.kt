@@ -1,5 +1,6 @@
 package com.stproject.client.android.data.di
 
+import com.stproject.client.android.data.repository.HttpBackgroundRepository
 import com.stproject.client.android.data.repository.HttpCardRepository
 import com.stproject.client.android.data.repository.HttpCharacterRepository
 import com.stproject.client.android.data.repository.HttpChatRepository
@@ -7,15 +8,17 @@ import com.stproject.client.android.data.repository.HttpCommentRepository
 import com.stproject.client.android.data.repository.HttpCreatorAssistantRepository
 import com.stproject.client.android.data.repository.HttpCreatorRepository
 import com.stproject.client.android.data.repository.HttpDecorationRepository
+import com.stproject.client.android.data.repository.HttpFanBadgeRepository
 import com.stproject.client.android.data.repository.HttpIapRepository
 import com.stproject.client.android.data.repository.HttpNotificationRepository
+import com.stproject.client.android.data.repository.HttpPersonaRepository
 import com.stproject.client.android.data.repository.HttpPresetRepository
 import com.stproject.client.android.data.repository.HttpReportRepository
 import com.stproject.client.android.data.repository.HttpSocialRepository
 import com.stproject.client.android.data.repository.HttpUserRepository
 import com.stproject.client.android.data.repository.HttpWalletRepository
 import com.stproject.client.android.data.repository.HttpWorldInfoRepository
-import com.stproject.client.android.data.repository.HttpBackgroundRepository
+import com.stproject.client.android.domain.repository.BackgroundRepository
 import com.stproject.client.android.domain.repository.CardRepository
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.ChatRepository
@@ -23,9 +26,10 @@ import com.stproject.client.android.domain.repository.CommentRepository
 import com.stproject.client.android.domain.repository.CreatorAssistantRepository
 import com.stproject.client.android.domain.repository.CreatorRepository
 import com.stproject.client.android.domain.repository.DecorationRepository
+import com.stproject.client.android.domain.repository.FanBadgeRepository
 import com.stproject.client.android.domain.repository.IapRepository
-import com.stproject.client.android.domain.repository.BackgroundRepository
 import com.stproject.client.android.domain.repository.NotificationRepository
+import com.stproject.client.android.domain.repository.PersonaRepository
 import com.stproject.client.android.domain.repository.PresetRepository
 import com.stproject.client.android.domain.repository.ReportRepository
 import com.stproject.client.android.domain.repository.SocialRepository
@@ -80,6 +84,14 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindDecorationRepository(impl: HttpDecorationRepository): DecorationRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPersonaRepository(impl: HttpPersonaRepository): PersonaRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFanBadgeRepository(impl: HttpFanBadgeRepository): FanBadgeRepository
 
     @Binds
     @Singleton

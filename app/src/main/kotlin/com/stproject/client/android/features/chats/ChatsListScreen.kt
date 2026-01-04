@@ -26,23 +26,55 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentFilterBlockedDialog
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.ContentGateBlockKind
 import com.stproject.client.android.core.compliance.NsfwBlockedDialog
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.domain.model.ChatSessionSummary
+import com.stproject.client.android.features.chat.ModerationViewModel
+import com.stproject.client.android.features.chat.ReportDialog
 
 @Composable
 fun ChatsListScreen(
     viewModel: ChatsListViewModel,
+    moderationViewModel: ModerationViewModel,
     onOpenSession: (ChatSessionSummary) -> Unit,
     contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val moderationState by moderationViewModel.uiState.collectAsState()
     var nsfwBlockedOpen by remember { mutableStateOf(false) }
+    var tagBlockedOpen by remember { mutableStateOf(false) }
+    var reportTargetId by remember { mutableStateOf<String?>(null) }
     val allowNsfw = contentGate.nsfwAllowed
+    val visibleItems = uiState.items.filterNot { contentGate.isTagBlocked(it.primaryMemberTags) }
+    val visibleLastSession =
+        uiState.lastSession?.takeUnless { contentGate.isTagBlocked(it.primaryMemberTags) }
 
-    LaunchedEffect(allowNsfw) {
-        viewModel.load(allowNsfw)
+    fun handleGateForSession(session: ChatSessionSummary): Boolean {
+        return when (
+            contentGate.blockKind(
+                session.primaryMemberIsNsfw,
+                session.primaryMemberAgeRating,
+                session.primaryMemberTags,
+            )
+        ) {
+            ContentGateBlockKind.TAGS_BLOCKED -> {
+                tagBlockedOpen = true
+                true
+            }
+            ContentGateBlockKind.NSFW_DISABLED -> {
+                nsfwBlockedOpen = true
+                true
+            }
+            null -> false
+            else -> true
+        }
+    }
+
+    LaunchedEffect(allowNsfw, contentGate.blockedTags) {
+        viewModel.load(allowNsfw, contentGate.blockedTags)
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -66,31 +98,39 @@ fun ChatsListScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
-            if (contentGate.nsfwAllowed) {
-                RestrictedContentNotice(onReport = null)
+            if (moderationState.error != null) {
+                Text(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = moderationState.error ?: "",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
             }
-            if (uiState.lastSession != null) {
-                val lastSession = uiState.lastSession
+            if (contentGate.nsfwAllowed) {
+                RestrictedContentNotice(
+                    onReport = {
+                        val targetId =
+                            visibleLastSession?.primaryMemberId
+                                ?: visibleItems.firstOrNull()?.primaryMemberId
+                        if (!targetId.isNullOrBlank()) {
+                            reportTargetId = targetId
+                            moderationViewModel.loadReasonsIfNeeded()
+                        }
+                    },
+                )
+            }
+            if (visibleLastSession != null) {
+                val lastSession = visibleLastSession
                 LastSessionCard(
                     item = lastSession,
                     onOpenSession = {
-                        if (contentGate.isRestricted(
-                                lastSession?.primaryMemberIsNsfw,
-                                lastSession?.primaryMemberAgeRating,
-                            )
-                        ) {
-                            if (contentGate.isNsfwBlocked(
-                                    lastSession?.primaryMemberIsNsfw,
-                                    lastSession?.primaryMemberAgeRating,
-                                )
-                            ) {
-                                nsfwBlockedOpen = true
-                            }
+                        if (handleGateForSession(lastSession)) {
                             return@LastSessionCard
                         }
-                        if (lastSession != null) {
-                            onOpenSession(lastSession)
-                        }
+                        onOpenSession(lastSession)
                     },
                 )
             }
@@ -98,22 +138,11 @@ fun ChatsListScreen(
                 modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(items = uiState.items, key = { it.sessionId }) { item ->
+                items(items = visibleItems, key = { it.sessionId }) { item ->
                     ChatSessionRow(
                         item = item,
                         onOpenSession = {
-                            if (contentGate.isRestricted(
-                                    item.primaryMemberIsNsfw,
-                                    item.primaryMemberAgeRating,
-                                )
-                            ) {
-                                if (contentGate.isNsfwBlocked(
-                                        item.primaryMemberIsNsfw,
-                                        item.primaryMemberAgeRating,
-                                    )
-                                ) {
-                                    nsfwBlockedOpen = true
-                                }
+                            if (handleGateForSession(item)) {
                                 return@ChatSessionRow
                             }
                             onOpenSession(item)
@@ -124,9 +153,30 @@ fun ChatsListScreen(
         }
     }
 
+    if (reportTargetId != null) {
+        ReportDialog(
+            state = moderationState,
+            onDismiss = { reportTargetId = null },
+            onSubmit = { reasons, detail ->
+                val targetId = reportTargetId ?: return@ReportDialog
+                moderationViewModel.submitReportForCharacter(targetId, reasons, detail)
+            },
+        )
+    }
+
+    LaunchedEffect(moderationState.lastReportSubmitted) {
+        if (moderationState.lastReportSubmitted) {
+            reportTargetId = null
+        }
+    }
+
     NsfwBlockedDialog(
         open = nsfwBlockedOpen,
         onDismiss = { nsfwBlockedOpen = false },
+    )
+    ContentFilterBlockedDialog(
+        open = tagBlockedOpen,
+        onDismiss = { tagBlockedOpen = false },
     )
 }
 

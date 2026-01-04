@@ -30,4 +30,42 @@
     <string name="decoration_type_bubble">气泡</string>
     <string name="decoration_type_background">背景</string>
     <string name="decoration_type_effect">特效</string>
+    <string name="content_blocked_filters_body">该内容已被你的内容过滤器屏蔽。</string>
+
+    <string name="settings_personas_title">身份</string>
+    <string name="settings_personas_manage">管理身份</string>
+    <string name="settings_badges_title">粉丝徽章</string>
+    <string name="settings_badges_my">我的徽章</string>
+
+    <string name="personas_title">身份列表</string>
+    <string name="personas_create_button">创建身份</string>
+    <string name="personas_create_title">创建身份</string>
+    <string name="personas_edit_title">编辑身份</string>
+    <string name="personas_empty">暂无身份。</string>
+    <string name="personas_default_badge">默认</string>
+    <string name="personas_set_default">设为默认</string>
+    <string name="personas_delete_title">删除身份？</string>
+    <string name="personas_delete_body">此操作无法撤销。</string>
+    <string name="personas_name_label">名称</string>
+    <string name="personas_name_placeholder">身份名称</string>
+    <string name="personas_description_label">简介</string>
+    <string name="personas_description_placeholder">简短描述</string>
+    <string name="personas_avatar_label">头像链接</string>
+    <string name="personas_avatar_placeholder">https://</string>
+
+    <string name="badges_title_my">我的粉丝徽章</string>
+    <string name="badges_title_creator">创作者徽章</string>
+    <string name="badges_empty_my">暂无徽章。</string>
+    <string name="badges_empty_creator">暂无徽章。</string>
+    <string name="badges_equip">佩戴</string>
+    <string name="badges_unequip">取消佩戴</string>
+    <string name="badges_equipped">已佩戴</string>
+    <string name="badges_owned">已拥有</string>
+    <string name="badges_level">Lv.%1$d</string>
+    <string name="badges_purchase_price">%1$d 钻石</string>
+    <string name="badges_purchase_title">购买徽章？</string>
+    <string name="badges_purchase_confirm">确认花费 %1$d 钻石购买此徽章？</string>
+
+    <string name="creator_badges_action">徽章</string>
+    <string name="feature_unavailable">当前构建不可用。</string>
 </resources>

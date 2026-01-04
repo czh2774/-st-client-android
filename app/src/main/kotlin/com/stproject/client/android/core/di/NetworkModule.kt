@@ -8,16 +8,18 @@ import com.stproject.client.android.core.logging.createHttpLoggingInterceptor
 import com.stproject.client.android.core.network.ClientHeadersInterceptor
 import com.stproject.client.android.core.network.StApi
 import com.stproject.client.android.core.network.StAuthApi
-import com.stproject.client.android.core.network.StBaseUrlProvider
 import com.stproject.client.android.core.network.StBackgroundApi
+import com.stproject.client.android.core.network.StBaseUrlProvider
 import com.stproject.client.android.core.network.StCardApi
 import com.stproject.client.android.core.network.StCharacterApi
 import com.stproject.client.android.core.network.StCommentApi
 import com.stproject.client.android.core.network.StCreatorApi
 import com.stproject.client.android.core.network.StCreatorAssistantApi
+import com.stproject.client.android.core.network.StFanBadgeApi
 import com.stproject.client.android.core.network.StIapApi
 import com.stproject.client.android.core.network.StNotificationApi
 import com.stproject.client.android.core.network.StOkHttpClientFactory
+import com.stproject.client.android.core.network.StPersonaApi
 import com.stproject.client.android.core.network.StPresetApi
 import com.stproject.client.android.core.network.StReportApi
 import com.stproject.client.android.core.network.StSocialApi
@@ -149,6 +151,14 @@ object NetworkModule {
     @Singleton
     fun provideStCreatorAssistantApi(retrofit: Retrofit): StCreatorAssistantApi =
         retrofit.create(StCreatorAssistantApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStPersonaApi(retrofit: Retrofit): StPersonaApi = retrofit.create(StPersonaApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideStFanBadgeApi(retrofit: Retrofit): StFanBadgeApi = retrofit.create(StFanBadgeApi::class.java)
 
     @Provides
     @Singleton

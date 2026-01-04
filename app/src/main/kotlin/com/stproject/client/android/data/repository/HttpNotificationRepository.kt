@@ -2,8 +2,11 @@ package com.stproject.client.android.data.repository
 
 import com.stproject.client.android.core.network.ApiClient
 import com.stproject.client.android.core.network.MarkReadRequestDto
+import com.stproject.client.android.core.network.NotificationContentDto
 import com.stproject.client.android.core.network.NotificationDto
 import com.stproject.client.android.core.network.StNotificationApi
+import com.stproject.client.android.domain.model.AgeRating
+import com.stproject.client.android.domain.model.ContentSummary
 import com.stproject.client.android.domain.model.NotificationItem
 import com.stproject.client.android.domain.repository.NotificationListResult
 import com.stproject.client.android.domain.repository.NotificationRepository
@@ -68,13 +71,32 @@ class HttpNotificationRepository
         private fun NotificationDto.toDomain(): NotificationItem? {
             val idValue = id?.trim().orEmpty()
             if (idValue.isEmpty()) return null
+            val contentMeta = data?.content?.toDomain()
             return NotificationItem(
                 id = idValue,
+                userId = userId?.trim()?.takeIf { it.isNotEmpty() },
                 type = type?.trim().orEmpty(),
                 title = title?.trim().orEmpty(),
                 content = content?.trim().orEmpty(),
+                contentMeta = contentMeta,
                 isRead = isRead ?: false,
                 createdAt = createdAt?.trim()?.takeIf { it.isNotEmpty() },
+            )
+        }
+
+        private fun NotificationContentDto.toDomain(): ContentSummary? {
+            val characterIdValue = characterId?.trim()?.takeIf { it.isNotEmpty() }
+            if (characterIdValue == null) return null
+            val cleanedTags =
+                tags
+                    ?.mapNotNull { tag -> tag.trim().takeIf { it.isNotEmpty() } }
+                    ?: emptyList()
+            return ContentSummary(
+                characterId = characterIdValue,
+                isNsfw = isNsfw,
+                moderationAgeRating = AgeRating.from(moderationAgeRating),
+                tags = cleanedTags,
+                visibility = visibility?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
     }

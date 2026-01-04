@@ -13,6 +13,8 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.core.network.AppError
+import com.stproject.client.android.core.network.toAppError
 import com.stproject.client.android.domain.model.IapProduct
 import com.stproject.client.android.domain.repository.IapRepository
 import com.stproject.client.android.domain.repository.IapRestoreRequest
@@ -57,7 +59,12 @@ class ShopViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                error = AppError.Validation(access.userMessage()),
+                            )
+                        }
                         return@launch
                     }
                     val catalog = iapRepository.getCatalog()
@@ -92,10 +99,10 @@ class ShopViewModel
                         )
                     }
                 } catch (e: ApiException) {
-                    _uiState.update { it.copy(isLoading = false, error = e.userMessage ?: e.message) }
+                    _uiState.update { it.copy(isLoading = false, error = e.toAppError()) }
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
-                    _uiState.update { it.copy(isLoading = false, error = "unexpected error") }
+                    _uiState.update { it.copy(isLoading = false, error = AppError.Unknown("unexpected error")) }
                 }
             }
         }
@@ -106,24 +113,32 @@ class ShopViewModel
         ) {
             if (!_uiState.value.purchaseEnabled) {
                 _uiState.update {
-                    it.copy(error = it.purchaseDisabledReason ?: "purchases disabled")
+                    it.copy(error = AppError.Validation(it.purchaseDisabledReason ?: "purchases disabled"))
                 }
                 return
             }
             val details =
                 productDetailsMap[productId] ?: run {
-                    _uiState.update { it.copy(error = "product not available") }
+                    _uiState.update { it.copy(error = AppError.Validation("product not available")) }
                     return
                 }
             viewModelScope.launch {
                 val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                 if (access is ContentAccessDecision.Blocked) {
-                    _uiState.update { it.copy(error = access.userMessage()) }
+                    _uiState.update { it.copy(error = AppError.Validation(access.userMessage())) }
                     return@launch
                 }
                 val result = billingManager.launchPurchase(activity, details)
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-                    _uiState.update { it.copy(error = "billing error: ${result.debugMessage}") }
+                    _uiState.update {
+                        it.copy(
+                            error =
+                                AppError.Billing(
+                                    code = result.responseCode,
+                                    message = "billing error: ${result.debugMessage}",
+                                ),
+                        )
+                    }
                 }
             }
         }
@@ -135,13 +150,24 @@ class ShopViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isRestoring = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isRestoring = false,
+                                error = AppError.Validation(access.userMessage()),
+                            )
+                        }
                         return@launch
                     }
                     val ready = billingManager.connect()
                     if (!ready) {
                         _uiState.update {
-                            it.copy(isRestoring = false, error = "Google Play billing not available.")
+                            it.copy(
+                                isRestoring = false,
+                                error = AppError.Billing(
+                                    code = null,
+                                    message = "Google Play billing not available.",
+                                ),
+                            )
                         }
                         return@launch
                     }
@@ -152,7 +178,12 @@ class ShopViewModel
                             .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
                             .distinctBy { it.purchaseToken }
                     if (purchases.isEmpty()) {
-                        _uiState.update { it.copy(isRestoring = false, error = "No purchases to restore.") }
+                        _uiState.update {
+                            it.copy(
+                                isRestoring = false,
+                                error = AppError.Validation("No purchases to restore."),
+                            )
+                        }
                         return@launch
                     }
                     val environment = catalogEnvironment ?: "Production"
@@ -174,7 +205,12 @@ class ShopViewModel
                             }
                         }
                     if (items.isEmpty()) {
-                        _uiState.update { it.copy(isRestoring = false, error = "No valid purchases found.") }
+                        _uiState.update {
+                            it.copy(
+                                isRestoring = false,
+                                error = AppError.Validation("No valid purchases found."),
+                            )
+                        }
                         return@launch
                     }
                     iapRepository.restore(
@@ -189,10 +225,10 @@ class ShopViewModel
                     }
                     _uiState.update { it.copy(isRestoring = false) }
                 } catch (e: ApiException) {
-                    _uiState.update { it.copy(isRestoring = false, error = e.userMessage ?: e.message) }
+                    _uiState.update { it.copy(isRestoring = false, error = e.toAppError()) }
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
-                    _uiState.update { it.copy(isRestoring = false, error = "unexpected error") }
+                    _uiState.update { it.copy(isRestoring = false, error = AppError.Unknown("unexpected error")) }
                 }
             }
         }
@@ -203,13 +239,21 @@ class ShopViewModel
         ) {
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 if (result.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) return
-                _uiState.update { it.copy(error = "billing error: ${result.debugMessage}") }
+                _uiState.update {
+                    it.copy(
+                        error =
+                            AppError.Billing(
+                                code = result.responseCode,
+                                message = "billing error: ${result.debugMessage}",
+                            ),
+                    )
+                }
                 return
             }
             if (purchases.isEmpty()) return
             val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
             if (access is ContentAccessDecision.Blocked) {
-                _uiState.update { it.copy(error = access.userMessage()) }
+                _uiState.update { it.copy(error = AppError.Validation(access.userMessage())) }
                 return
             }
             val environment = catalogEnvironment ?: "Production"
@@ -225,38 +269,45 @@ class ShopViewModel
                         val product = catalogProducts[productId] ?: continue
                         val result =
                             iapRepository.submitTransaction(
-                            IapTransactionRequest(
-                                platform = "android",
-                                kind = product.kind,
-                                productId = productId,
-                                environment = environment,
-                                transactionId = token,
-                                purchaseToken = token,
-                                packageName = BuildConfig.APPLICATION_ID,
-                                orderId = purchase.orderId,
-                                purchaseTimeMs = purchase.purchaseTime,
-                                purchaseState = purchase.purchaseState,
-                                purchaseData = purchase.originalJson,
-                                purchaseSignature = purchase.signature,
-                                idempotencyKey = "android:$token",
-                                clientTimeMs = System.currentTimeMillis(),
-                            ),
+                                IapTransactionRequest(
+                                    platform = "android",
+                                    kind = product.kind,
+                                    productId = productId,
+                                    environment = environment,
+                                    transactionId = token,
+                                    purchaseToken = token,
+                                    packageName = BuildConfig.APPLICATION_ID,
+                                    orderId = purchase.orderId,
+                                    purchaseTimeMs = purchase.purchaseTime,
+                                    purchaseState = purchase.purchaseState,
+                                    purchaseData = purchase.originalJson,
+                                    purchaseSignature = purchase.signature,
+                                    idempotencyKey = "android:$token",
+                                    clientTimeMs = System.currentTimeMillis(),
+                                ),
                             )
                         if (result.ok != true) {
                             verified = false
                             val status = result.status?.trim().takeIf { it?.isNotEmpty() == true }
                             _uiState.update {
-                                it.copy(error = status ?: "purchase verification failed")
+                                it.copy(
+                                    error =
+                                        AppError.Billing(
+                                            code = null,
+                                            message = status ?: "purchase verification failed",
+                                            retryable = false,
+                                        ),
+                                )
                             }
                             break
                         }
                     }
                 } catch (e: ApiException) {
-                    _uiState.update { it.copy(error = e.userMessage ?: e.message) }
+                    _uiState.update { it.copy(error = e.toAppError()) }
                     continue
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
-                    _uiState.update { it.copy(error = "unexpected error") }
+                    _uiState.update { it.copy(error = AppError.Unknown("unexpected error")) }
                     continue
                 }
 
@@ -283,7 +334,16 @@ class ShopViewModel
                     billingManager.consumePurchase(token)
                 }
             if (!acknowledged) {
-                _uiState.update { it.copy(error = "purchase acknowledgement failed") }
+                _uiState.update {
+                    it.copy(
+                        error =
+                            AppError.Billing(
+                                code = null,
+                                message = "purchase acknowledgement failed",
+                                retryable = false,
+                            ),
+                    )
+                }
             }
         }
 

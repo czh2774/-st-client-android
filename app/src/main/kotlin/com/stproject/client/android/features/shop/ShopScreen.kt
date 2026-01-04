@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.network.userMessage
 
 @Composable
 fun ShopScreen(viewModel: ShopViewModel) {
@@ -92,7 +93,7 @@ fun ShopScreen(viewModel: ShopViewModel) {
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.errorContainer)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
-                    text = uiState.error ?: "",
+                    text = uiState.error?.userMessage() ?: "",
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }

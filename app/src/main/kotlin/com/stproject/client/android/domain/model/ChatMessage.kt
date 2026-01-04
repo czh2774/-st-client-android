@@ -9,5 +9,5 @@ data class ChatMessage(
     val isStreaming: Boolean = false,
     val swipes: List<String> = emptyList(),
     val swipeId: Int? = null,
-    val metadata: Map<String, Any>? = null,
+    val metadata: Map<String, Any?>? = null,
 )

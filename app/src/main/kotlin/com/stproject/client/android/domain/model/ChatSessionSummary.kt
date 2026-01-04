@@ -7,4 +7,5 @@ data class ChatSessionSummary(
     val updatedAt: String?,
     val primaryMemberIsNsfw: Boolean? = null,
     val primaryMemberAgeRating: AgeRating? = null,
+    val primaryMemberTags: List<String> = emptyList(),
 )

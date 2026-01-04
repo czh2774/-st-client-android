@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.network.userMessage
 import com.stproject.client.android.domain.model.WalletTransaction
 
 @Composable
@@ -87,7 +88,7 @@ fun WalletScreen(viewModel: WalletViewModel) {
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.errorContainer)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
-                    text = uiState.error ?: "",
+                    text = uiState.error?.userMessage() ?: "",
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }

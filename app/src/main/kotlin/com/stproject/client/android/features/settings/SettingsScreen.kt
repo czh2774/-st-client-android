@@ -42,6 +42,9 @@ fun SettingsScreen(
     onOpenModelPresets: () -> Unit,
     onOpenBackgrounds: () -> Unit,
     onOpenDecorations: () -> Unit,
+    onOpenPersonas: () -> Unit,
+    showBadges: Boolean,
+    onOpenBadges: () -> Unit,
 ) {
     val context = LocalContext.current
     val policyUrls = remember { PolicyUrlProvider() }
@@ -187,7 +190,10 @@ fun SettingsScreen(
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.settings_model_presets_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.settings_model_presets_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
                 Button(onClick = onOpenModelPresets, enabled = !uiState.isSubmitting) {
                     Text(stringResource(R.string.model_presets_title))
                 }
@@ -200,6 +206,22 @@ fun SettingsScreen(
                 }
                 Button(onClick = onOpenDecorations, enabled = !uiState.isSubmitting) {
                     Text(stringResource(R.string.settings_decorations_title))
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.settings_personas_title), style = MaterialTheme.typography.titleMedium)
+                Button(onClick = onOpenPersonas, enabled = !uiState.isSubmitting) {
+                    Text(stringResource(R.string.settings_personas_manage))
+                }
+            }
+
+            if (showBadges) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.settings_badges_title), style = MaterialTheme.typography.titleMedium)
+                    Button(onClick = onOpenBadges, enabled = !uiState.isSubmitting) {
+                        Text(stringResource(R.string.settings_badges_my))
+                    }
                 }
             }
 

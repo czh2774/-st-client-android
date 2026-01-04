@@ -27,11 +27,10 @@ object A2UIBindingResolver {
             val obj = value.asJsonObject
             val path = obj.readString("path")?.trim().orEmpty()
             if (path.isNotEmpty()) {
-                val literal = extractLiteralValue(obj)
-                if (literal != null) {
-                    initializePathValue(dataModel, path, literal)
-                }
-                return resolvePath(path, dataModel) ?: literal
+                val resolved = resolvePath(path, dataModel)
+                if (resolved != null) return resolved
+                extractLiteralValue(obj)?.let { return it }
+                return null
             }
             extractLiteralValue(obj)?.let { return it }
         }
@@ -84,27 +83,16 @@ object A2UIBindingResolver {
         rawPath: String,
         dataModel: Map<String, Any?>,
     ): Any? {
-        val isAbsolute = rawPath.trim().startsWith("/")
-        val segments = parsePathSegments(rawPath)
-        if (segments.isEmpty()) return null
-        var current: Any? =
-            if (!isAbsolute) {
-                dataModel[TEMPLATE_ITEM_KEY] ?: dataModel
-            } else {
-                dataModel
+        val pointer = rawPath.trim()
+        if (pointer.isEmpty()) return null
+        val isAbsolute = pointer.startsWith("/")
+        val templateItem = dataModel[TEMPLATE_ITEM_KEY]
+        val root =
+            when (templateItem) {
+                is Map<*, *>, is List<*> -> if (isAbsolute) dataModel else templateItem
+                else -> dataModel
             }
-        for (segment in segments) {
-            current =
-                when (current) {
-                    is Map<*, *> -> current[segment]
-                    is List<*> -> {
-                        val idx = segment.toIntOrNull() ?: return null
-                        current.getOrNull(idx)
-                    }
-                    else -> return null
-                }
-        }
-        return current
+        return A2UIJsonPointer.resolve(pointer, root)
     }
 
     private fun extractLiteralValue(obj: JsonObject): Any? {
@@ -122,61 +110,6 @@ object A2UIBindingResolver {
         }
         return null
     }
-
-    private fun initializePathValue(
-        dataModel: Map<String, Any?>,
-        path: String,
-        value: Any,
-    ) {
-        val isAbsolute = path.trim().startsWith("/")
-        val segments = parsePathSegments(path)
-        if (segments.isEmpty()) return
-        @Suppress("UNCHECKED_CAST")
-        val container = dataModel as? MutableMap<String, Any?> ?: return
-        val root =
-            if (!isAbsolute) {
-                val item = container[TEMPLATE_ITEM_KEY]
-                val itemMap =
-                    when (item) {
-                        is MutableMap<*, *> -> mapToMutableStringMap(item)
-                        is Map<*, *> -> mapToMutableStringMap(item)
-                        else -> return
-                    }
-                if (item !is MutableMap<*, *>) {
-                    container[TEMPLATE_ITEM_KEY] = itemMap
-                }
-                itemMap
-            } else {
-                container
-            }
-        val leaf = segments.last()
-        var current: MutableMap<String, Any?> = root
-        for (segment in segments.dropLast(1)) {
-            val existing = current[segment]
-            val next =
-                when (existing) {
-                    is MutableMap<*, *> -> existing.entries.associate { it.key.toString() to it.value }.toMutableMap()
-                    is Map<*, *> -> existing.entries.associate { it.key.toString() to it.value }.toMutableMap()
-                    else -> null
-                }
-            if (next == null) {
-                val fresh = mutableMapOf<String, Any?>()
-                current[segment] = fresh
-                current = fresh
-            } else {
-                if (existing !is MutableMap<*, *>) {
-                    current[segment] = next
-                }
-                current = next
-            }
-        }
-        current[leaf] = value
-    }
-
-    private fun parsePathSegments(rawPath: String): List<String> =
-        rawPath.split("/")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
 
     private fun parseJsonElement(element: JsonElement?): Any? {
         if (element == null || element.isJsonNull) return null
@@ -201,9 +134,6 @@ object A2UIBindingResolver {
         }
         return null
     }
-
-    private fun mapToMutableStringMap(source: Map<*, *>): MutableMap<String, Any?> =
-        source.entries.associate { it.key.toString() to it.value }.toMutableMap()
 }
 
 private fun JsonObject.readString(key: String): String? =

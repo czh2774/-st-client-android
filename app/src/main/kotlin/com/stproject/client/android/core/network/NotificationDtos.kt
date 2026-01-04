@@ -6,8 +6,21 @@ data class NotificationDto(
     val type: String? = null,
     val title: String? = null,
     val content: String? = null,
+    val data: NotificationDataDto? = null,
     val isRead: Boolean? = null,
     val createdAt: String? = null,
+)
+
+data class NotificationDataDto(
+    val content: NotificationContentDto? = null,
+)
+
+data class NotificationContentDto(
+    val characterId: String? = null,
+    val isNsfw: Boolean? = null,
+    val moderationAgeRating: String? = null,
+    val tags: List<String>? = null,
+    val visibility: String? = null,
 )
 
 data class NotificationsResponseDto(

@@ -33,7 +33,7 @@ class InMemoryChatRepository
                     ),
                 ),
             )
-        private var sessionVariables: Map<String, Any> = emptyMap()
+        private var sessionVariables: Map<String, Any?> = emptyMap()
         private val _a2uiState = MutableStateFlow<A2UIRuntimeState?>(null)
 
         override val messages: Flow<List<ChatMessage>> = _messages.asStateFlow()
@@ -132,22 +132,23 @@ class InMemoryChatRepository
             // No-op for in-memory stub.
         }
 
-        override suspend fun loadSessionVariables(): Map<String, Any> {
+        override suspend fun loadSessionVariables(): Map<String, Any?> {
             return sessionVariables
         }
 
-        override suspend fun updateSessionVariables(variables: Map<String, Any>) {
+        override suspend fun updateSessionVariables(variables: Map<String, Any?>) {
             sessionVariables = variables
         }
 
         override suspend fun updateMessageVariables(
             messageId: String,
-            swipesData: List<Map<String, Any>>,
+            swipesData: List<Map<String, Any?>>,
         ) {
             _messages.value =
                 _messages.value.map { message ->
                     if (message.id != messageId) return@map message
-                    val nextMetadata = (message.metadata ?: emptyMap()) + mapOf("swipes_data" to swipesData)
+                    val nextMetadata =
+                        (message.metadata ?: emptyMap()) + mapOf("swipes_data" to swipesData)
                     message.copy(metadata = nextMetadata)
                 }
         }

@@ -108,4 +108,67 @@ class ContentGateTest {
         val decision = gate.decideAccess(isNsfw = null, ageRating = AgeRating.Age16)
         assertEquals(ContentAccessDecision.Allowed, decision)
     }
+
+    @Test
+    fun `isTagBlocked returns true for matching blocked tag ignoring case`() {
+        val gate =
+            ContentGate(
+                consentLoaded = true,
+                consentRequired = false,
+                ageVerified = true,
+                allowNsfwPreference = true,
+                blockedTags = listOf("Violence", "gore"),
+            )
+
+        assertEquals(true, gate.isTagBlocked(listOf("romance", "GORE")))
+    }
+
+    @Test
+    fun `isTagBlocked returns false when tags are empty or not matching`() {
+        val gate =
+            ContentGate(
+                consentLoaded = true,
+                consentRequired = false,
+                ageVerified = true,
+                allowNsfwPreference = true,
+                blockedTags = listOf("violence"),
+            )
+
+        assertEquals(false, gate.isTagBlocked(null))
+        assertEquals(false, gate.isTagBlocked(emptyList()))
+        assertEquals(false, gate.isTagBlocked(listOf("romance")))
+    }
+
+    @Test
+    fun `blockKind returns tag block before access checks`() {
+        val gate =
+            ContentGate(
+                consentLoaded = false,
+                consentRequired = true,
+                ageVerified = false,
+                allowNsfwPreference = false,
+                blockedTags = listOf("gore"),
+            )
+
+        assertEquals(
+            ContentGateBlockKind.TAGS_BLOCKED,
+            gate.blockKind(isNsfw = true, ageRating = AgeRating.Age18, tags = listOf("GORE")),
+        )
+    }
+
+    @Test
+    fun `blockKind returns nsfw disabled when blocked`() {
+        val gate =
+            ContentGate(
+                consentLoaded = true,
+                consentRequired = false,
+                ageVerified = true,
+                allowNsfwPreference = false,
+            )
+
+        assertEquals(
+            ContentGateBlockKind.NSFW_DISABLED,
+            gate.blockKind(isNsfw = true, ageRating = AgeRating.Age18, tags = emptyList()),
+        )
+    }
 }

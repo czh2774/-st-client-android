@@ -7,6 +7,10 @@ class ContentAccessMessagesTest {
     @Test
     fun `blocked userMessage maps reasons`() {
         assertEquals(
+            "content blocked by filters",
+            ContentAccessDecision.Blocked(ContentBlockReason.TAGS_BLOCKED).userMessage(),
+        )
+        assertEquals(
             "mature content disabled",
             ContentAccessDecision.Blocked(ContentBlockReason.NSFW_DISABLED).userMessage(),
         )

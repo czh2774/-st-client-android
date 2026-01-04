@@ -4,21 +4,24 @@ This document defines the Play Store feature scope for `st-client-android`,
 with explicit decisions for React-only features and policy-sensitive areas.
 It is an implementation guide, not a policy substitute.
 
+Play parity target list (single source of truth for Play builds):
+`PLAY_PARITY_TARGET.md`.
+
 ## Scope Decisions (Initial)
 
 - Extensions (dynamic scripts/styles)
-  - Status: **Not shipped on Play**.
+  - Status: **Permanently disabled on Android**.
   - Rationale: dynamic code loading is a high-risk area for Play review.
-  - Alternative: curated, server-approved templates or fixed presets.
 - Red packet
-  - Status: **Blocked until compliant design**.
+  - Status: **Blocked on Play pending policy review**.
   - Rationale: must avoid chance-based or cash-like behavior.
-  - Alternative: deterministic, non-cash bonus with clear disclosure.
+  - Alternative: deterministic, fixed-amount credit gift with clear disclosure,
+    Play Billing-funded only, no cash-out or transfer.
 - Fan badges / creator badges
-  - Status: **Planned**, gated by Play Billing.
+  - Status: **Implemented**, gated by Play Billing.
   - Rationale: IAP must be Play Billing only; no cash-out or trading.
 - Personas / masks
-  - Status: **Planned**.
+  - Status: **Implemented**.
   - Rationale: local profile metadata; no policy blockers.
 - Settings parity (themes/backgrounds/decorations)
   - Status: **Planned**.
@@ -32,6 +35,6 @@ It is an implementation guide, not a policy substitute.
 
 ## Follow-up Tasks
 
-- Confirm policy-compliant product design for red packet and badges.
-- Add feature flags to hard-disable non-compliant features in release builds.
+- Confirm Play-safe red packet flow (fixed credit gift, no randomness, no cash-out).
+- Ensure red packet funding is Play Billing or promo grants only (no web top-up).
 - Expand content rating coverage for all UGC lists (notifications, social, creator).

@@ -30,12 +30,12 @@ class ClientHeadersInterceptor
         private fun isA2UIEnabled(): Boolean = true
 
         private companion object {
-        private const val AUTH_CLIENT_HEADER = "X-Auth-Client"
-        private const val AUTH_CLIENT_VALUE = "android"
-        private const val A2UI_ENABLED_HEADER = "X-ST-A2UI-Enabled"
-        private const val A2UI_CAPABILITIES_HEADER = "X-ST-A2UI-Capabilities"
-        private val A2UI_CAPABILITIES: String by lazy {
-            A2UIClientCapabilitiesProvider.asJson(Gson())
+            private const val AUTH_CLIENT_HEADER = "X-Auth-Client"
+            private const val AUTH_CLIENT_VALUE = "android"
+            private const val A2UI_ENABLED_HEADER = "X-ST-A2UI-Enabled"
+            private const val A2UI_CAPABILITIES_HEADER = "X-ST-A2UI-Capabilities"
+            private val A2UI_CAPABILITIES: String by lazy {
+                A2UIClientCapabilitiesProvider.asJson(Gson())
+            }
         }
     }
-}

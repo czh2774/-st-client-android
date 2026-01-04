@@ -14,6 +14,7 @@ data class CommentsUiState(
     val characterName: String? = null,
     val characterIsNsfw: Boolean? = null,
     val characterAgeRating: AgeRating? = null,
+    val characterTags: List<String> = emptyList(),
     val sort: CommentSort = CommentSort.Hot,
     val items: List<Comment> = emptyList(),
     val total: Int = 0,

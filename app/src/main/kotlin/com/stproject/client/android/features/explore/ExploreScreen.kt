@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -32,7 +33,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentFilterBlockedDialog
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.ContentGateBlockKind
 import com.stproject.client.android.core.compliance.NsfwBlockedDialog
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.core.compliance.resolveNsfwHint
@@ -41,6 +44,8 @@ import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chat.ReportDialog
 
 private const val SHARE_CODE_INPUT_TEST_TAG = "explore.share_code_input"
+
+private data class ExploreSortOption(val key: String, val labelRes: Int)
 
 @Composable
 fun ExploreScreen(
@@ -55,7 +60,30 @@ fun ExploreScreen(
     var reportTargetId by remember { mutableStateOf<String?>(null) }
     var blockTargetId by remember { mutableStateOf<String?>(null) }
     var nsfwBlockedOpen by remember { mutableStateOf(false) }
+    var tagBlockedOpen by remember { mutableStateOf(false) }
     val allowNsfw = contentGate.nsfwAllowed
+    val visibleItems = uiState.items.filterNot { contentGate.isTagBlocked(it.tags) }
+
+    fun handleGateForCharacter(character: CharacterSummary): Boolean {
+        return when (
+            contentGate.blockKind(
+                character.isNsfw,
+                character.moderationAgeRating,
+                character.tags,
+            )
+        ) {
+            ContentGateBlockKind.TAGS_BLOCKED -> {
+                tagBlockedOpen = true
+                true
+            }
+            ContentGateBlockKind.NSFW_DISABLED -> {
+                nsfwBlockedOpen = true
+                true
+            }
+            null -> false
+            else -> true
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.load()
@@ -71,12 +99,28 @@ fun ExploreScreen(
         val memberId = uiState.resolvedMemberId
         val shareCode = uiState.resolvedShareCode
         if (!memberId.isNullOrBlank() && !shareCode.isNullOrBlank()) {
-            if (contentGate.isRestricted(uiState.resolvedIsNsfw, uiState.resolvedAgeRating)) {
-                if (contentGate.isNsfwBlocked(uiState.resolvedIsNsfw, uiState.resolvedAgeRating)) {
-                    nsfwBlockedOpen = true
+            when (
+                contentGate.blockKind(
+                    uiState.resolvedIsNsfw,
+                    uiState.resolvedAgeRating,
+                    uiState.resolvedTags,
+                )
+            ) {
+                ContentGateBlockKind.TAGS_BLOCKED -> {
+                    tagBlockedOpen = true
+                    viewModel.consumeResolvedShareCode()
+                    return@LaunchedEffect
                 }
-                viewModel.consumeResolvedShareCode()
-                return@LaunchedEffect
+                ContentGateBlockKind.NSFW_DISABLED -> {
+                    nsfwBlockedOpen = true
+                    viewModel.consumeResolvedShareCode()
+                    return@LaunchedEffect
+                }
+                null -> Unit
+                else -> {
+                    viewModel.consumeResolvedShareCode()
+                    return@LaunchedEffect
+                }
             }
             onStartChat(memberId, shareCode)
             viewModel.consumeResolvedShareCode()
@@ -99,11 +143,19 @@ fun ExploreScreen(
                     style = MaterialTheme.typography.titleSmall,
                 )
                 val hasMatureItems =
-                    uiState.items.any {
+                    visibleItems.any {
                         resolveNsfwHint(it.isNsfw, it.moderationAgeRating) == true
                     }
                 if (contentGate.nsfwAllowed && hasMatureItems) {
-                    RestrictedContentNotice(onReport = null)
+                    RestrictedContentNotice(
+                        onReport = {
+                            val targetId = visibleItems.firstOrNull()?.id
+                            if (!targetId.isNullOrBlank()) {
+                                reportTargetId = targetId
+                                moderationViewModel.loadReasonsIfNeeded()
+                            }
+                        },
+                    )
                 }
                 OutlinedTextField(
                     modifier =
@@ -130,6 +182,76 @@ fun ExploreScreen(
                         enabled = !uiState.isResolvingShareCode,
                     ) {
                         Text(stringResource(R.string.explore_share_join))
+                    }
+                }
+            }
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .padding(bottom = 12.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.explore_filters_title),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                val sortOptions =
+                    listOf(
+                        ExploreSortOption("homepage", R.string.explore_sort_homepage),
+                        ExploreSortOption("new", R.string.explore_sort_new),
+                        ExploreSortOption("recommend", R.string.explore_sort_recommend),
+                        ExploreSortOption("trending", R.string.explore_sort_trending),
+                        ExploreSortOption("all", R.string.explore_sort_all),
+                        ExploreSortOption("star", R.string.explore_sort_followed),
+                    )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(items = sortOptions, key = { it.key }) { option ->
+                        val selected = option.key == uiState.sortBy
+                        if (selected) {
+                            Button(
+                                onClick = { viewModel.setSortBy(option.key) },
+                                enabled = !uiState.isLoading,
+                            ) {
+                                Text(stringResource(option.labelRes))
+                            }
+                        } else {
+                            TextButton(
+                                onClick = { viewModel.setSortBy(option.key) },
+                                enabled = !uiState.isLoading,
+                            ) {
+                                Text(stringResource(option.labelRes))
+                            }
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = uiState.searchKeyword,
+                    onValueChange = viewModel::onSearchChanged,
+                    enabled = !uiState.isLoading,
+                    label = { Text(stringResource(R.string.explore_search_label)) },
+                )
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = uiState.tagsInput,
+                    onValueChange = viewModel::onTagsChanged,
+                    enabled = !uiState.isLoading,
+                    label = { Text(stringResource(R.string.explore_tags_label)) },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = viewModel::clearFilters, enabled = !uiState.isLoading) {
+                        Text(stringResource(R.string.common_clear))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(onClick = viewModel::applyFilters, enabled = !uiState.isLoading) {
+                        Text(stringResource(R.string.common_apply))
                     }
                 }
             }
@@ -178,25 +300,15 @@ fun ExploreScreen(
                 modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(items = uiState.items, key = { it.id }) { item ->
+                items(items = visibleItems, key = { it.id }) { item ->
                     CharacterRow(
                         item = item,
                         onStartChat = { character ->
-                            if (contentGate.isRestricted(character.isNsfw, character.moderationAgeRating)) {
-                                if (contentGate.isNsfwBlocked(character.isNsfw, character.moderationAgeRating)) {
-                                    nsfwBlockedOpen = true
-                                }
-                                return@CharacterRow
-                            }
+                            if (handleGateForCharacter(character)) return@CharacterRow
                             onStartChat(character.id, null)
                         },
                         onOpenDetail = { character ->
-                            if (contentGate.isRestricted(character.isNsfw, character.moderationAgeRating)) {
-                                if (contentGate.isNsfwBlocked(character.isNsfw, character.moderationAgeRating)) {
-                                    nsfwBlockedOpen = true
-                                }
-                                return@CharacterRow
-                            }
+                            if (handleGateForCharacter(character)) return@CharacterRow
                             onOpenDetail(character.id)
                         },
                         onReport = { characterId ->
@@ -261,6 +373,10 @@ fun ExploreScreen(
     NsfwBlockedDialog(
         open = nsfwBlockedOpen,
         onDismiss = { nsfwBlockedOpen = false },
+    )
+    ContentFilterBlockedDialog(
+        open = tagBlockedOpen,
+        onDismiss = { tagBlockedOpen = false },
     )
 
     LaunchedEffect(moderationState.lastBlockSuccess) {

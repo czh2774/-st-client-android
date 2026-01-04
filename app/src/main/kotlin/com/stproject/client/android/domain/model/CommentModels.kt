@@ -28,6 +28,7 @@ data class CommentListResult(
     val items: List<Comment>,
     val total: Int,
     val hasMore: Boolean,
+    val character: ContentSummary? = null,
 )
 
 data class CommentLikeResult(

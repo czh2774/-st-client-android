@@ -6,6 +6,7 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.domain.model.CreatorAssistantSessionSummary
 import com.stproject.client.android.domain.repository.CreatorAssistantRepository
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,7 +31,7 @@ class CreatorAssistantListViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -46,10 +47,11 @@ class CreatorAssistantListViewModel
                         return@launch
                     }
                     val result = repository.listSessions(pageNum = 1, pageSize = 20)
+                    val filtered = filterByDraftAccess(result.items)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            items = result.items,
+                            items = filtered,
                             pageNum = 1,
                             hasMore = result.hasMore,
                         )
@@ -70,7 +72,7 @@ class CreatorAssistantListViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -83,10 +85,11 @@ class CreatorAssistantListViewModel
                         return@launch
                     }
                     val result = repository.listSessions(pageNum = nextPage, pageSize = 20)
+                    val filtered = filterByDraftAccess(result.items)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            items = it.items + result.items,
+                            items = it.items + filtered,
                             pageNum = nextPage,
                             hasMore = result.hasMore,
                         )
@@ -105,7 +108,7 @@ class CreatorAssistantListViewModel
             _uiState.update { it.copy(isLoading = true, error = null, newSessionId = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -133,7 +136,7 @@ class CreatorAssistantListViewModel
             _uiState.update { it.copy(isLoading = true, error = null, openSessionId = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -160,5 +163,27 @@ class CreatorAssistantListViewModel
 
         fun consumeOpenSession() {
             _uiState.update { it.copy(openSessionId = null) }
+        }
+
+        private suspend fun filterByDraftAccess(
+            items: List<CreatorAssistantSessionSummary>,
+        ): List<CreatorAssistantSessionSummary> {
+            if (items.isEmpty()) return items
+            return items.filter { item ->
+                val hasDraftMeta =
+                    !item.draftName.isNullOrBlank() ||
+                        item.draftIsNsfw != null ||
+                        item.draftTags.isNotEmpty() ||
+                        item.draftModerationAgeRating != null
+                if (!hasDraftMeta) return@filter true
+                val decision =
+                    resolveContentAccess.execute(
+                        memberId = null,
+                        isNsfwHint = item.draftIsNsfw,
+                        ageRatingHint = item.draftModerationAgeRating,
+                        tags = item.draftTags,
+                    )
+                decision is ContentAccessDecision.Allowed
+            }
         }
     }

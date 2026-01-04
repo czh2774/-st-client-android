@@ -14,8 +14,17 @@ data class A2UIMessageMetadataDto(
     val a2uiClientCapabilities: A2UIClientCapabilities? = null,
 )
 
+data class A2UIErrorDto(
+    val type: String? = null,
+    val message: String? = null,
+    val surfaceId: String? = null,
+    val componentId: String? = null,
+    val details: Map<String, Any?>? = null,
+)
+
 data class A2UIEventRequestDto(
-    val userAction: A2UIUserActionDto,
+    val userAction: A2UIUserActionDto? = null,
+    val error: A2UIErrorDto? = null,
     val metadata: A2UIMessageMetadataDto? = null,
 )
 

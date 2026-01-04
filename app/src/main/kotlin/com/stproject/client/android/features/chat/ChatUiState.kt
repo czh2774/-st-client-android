@@ -12,6 +12,7 @@ data class ChatUiState(
     val shareInfo: ShareCodeInfo? = null,
     val activeCharacterIsNsfw: Boolean? = null,
     val activeCharacterAgeRating: AgeRating? = null,
+    val activeCharacterTags: List<String> = emptyList(),
     val accessError: String? = null,
     val error: String? = null,
 )

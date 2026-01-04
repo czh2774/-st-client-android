@@ -7,7 +7,7 @@ data class ChatMessageDto(
     val role: String? = null,
     val content: String? = null,
     val createdAt: String? = null,
-    val metadata: Map<String, Any>? = null,
+    val metadata: Map<String, Any?>? = null,
     val swipes: List<String>? = null,
     val swipeId: Int? = null,
 )

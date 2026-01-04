@@ -27,7 +27,7 @@ data class ChatSessionItemDto(
 
 data class ChatSessionDetailDto(
     val sessionId: String,
-    val metadata: Map<String, Any>? = null,
+    val metadata: Map<String, Any?>? = null,
     val updatedAt: String? = null,
 )
 
@@ -43,5 +43,5 @@ data class UpdateChatSessionRequestDto(
 )
 
 data class ChatSessionMetadataPatchDto(
-    val xbVars: Map<String, Any>? = null,
+    val xbVars: Map<String, Any?>? = null,
 )

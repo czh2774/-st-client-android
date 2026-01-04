@@ -8,7 +8,9 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingResult
+import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
+import com.stproject.client.android.R
 import com.stproject.client.android.core.billing.BillingManager
 import com.stproject.client.android.core.billing.BillingPurchaseUpdate
 import com.stproject.client.android.core.compliance.ContentAccessDecision
@@ -198,6 +200,41 @@ class ShopScreenTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             !viewModel.uiState.value.isRestoring
         }
+    }
+
+    @Test
+    fun launchPurchaseShowsBillingError() {
+        val repo = FakeIapRepository()
+        val updates = MutableSharedFlow<BillingPurchaseUpdate>(extraBufferCapacity = 1)
+        val billingManager = mockk<BillingManager>()
+        every { billingManager.purchaseUpdates } returns updates
+
+        val productDetails = mockk<ProductDetails>(relaxed = true)
+        every { productDetails.productId } returns "prod-1"
+        every { productDetails.productType } returns BillingClient.ProductType.INAPP
+        coEvery { billingManager.queryProductDetails(any()) } returns listOf(productDetails)
+        coEvery { billingManager.connect() } returns true
+        every { billingManager.launchPurchase(any(), any()) } returns
+            BillingResult.newBuilder()
+                .setResponseCode(BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE)
+                .setDebugMessage("service down")
+                .build()
+
+        val viewModel = createViewModel(repo, billingManager)
+        composeRule.setContent {
+            ShopScreen(viewModel = viewModel)
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.purchaseEnabled
+        }
+
+        val buyLabel = composeRule.activity.getString(R.string.shop_buy)
+        composeRule.onNodeWithText(buyLabel).performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            viewModel.uiState.value.error?.message?.contains("billing error") == true
+        }
+        composeRule.onNodeWithText("billing error: service down").assertIsDisplayed()
     }
 
     @Test

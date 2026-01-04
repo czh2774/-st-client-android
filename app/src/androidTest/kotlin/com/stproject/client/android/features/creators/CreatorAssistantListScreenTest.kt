@@ -10,6 +10,7 @@ import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.ContentAccessManager
 import com.stproject.client.android.core.compliance.ContentBlockReason
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.session.ChatSessionStore
 import com.stproject.client.android.domain.model.CharacterDetail
 import com.stproject.client.android.domain.model.CharacterFollowResult
 import com.stproject.client.android.domain.model.CharacterSummary
@@ -20,12 +21,16 @@ import com.stproject.client.android.domain.model.CreatorAssistantPublishResult
 import com.stproject.client.android.domain.model.CreatorAssistantSessionHistory
 import com.stproject.client.android.domain.model.CreatorAssistantSessionSummary
 import com.stproject.client.android.domain.model.CreatorAssistantSubCharacter
+import com.stproject.client.android.domain.model.ReportReasonMeta
 import com.stproject.client.android.domain.model.ShareCodeInfo
 import com.stproject.client.android.domain.repository.CharacterRepository
 import com.stproject.client.android.domain.repository.CreatorAssistantRepository
 import com.stproject.client.android.domain.repository.CreatorAssistantSessionsResult
 import com.stproject.client.android.domain.repository.CreatorAssistantStartResult
+import com.stproject.client.android.domain.repository.ReportRepository
+import com.stproject.client.android.domain.usecase.BlockCharacterUseCase
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
+import com.stproject.client.android.features.chat.ModerationViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.Assert.assertEquals
@@ -201,6 +206,66 @@ class CreatorAssistantListScreenTest {
         }
     }
 
+    private class FakeReportRepository : ReportRepository {
+        override suspend fun getReasonMeta(): ReportReasonMeta {
+            return ReportReasonMeta(reasons = emptyList(), requiresDetailReasons = emptyList(), maxDetailLength = 0)
+        }
+
+        override suspend fun submitReport(
+            targetType: String,
+            targetId: String,
+            reasons: List<String>,
+            detail: String?,
+            sessionId: String?,
+        ) = Unit
+    }
+
+    private class FakeChatSessionStore : ChatSessionStore {
+        private var sessionId: String? = null
+        private var clientSessionId: String? = null
+        private var primaryMemberId: String? = null
+        private var shareCode: String? = null
+        private var updatedAtMs: Long? = null
+
+        override fun getSessionId(): String? = sessionId
+
+        override fun setSessionId(sessionId: String?) {
+            this.sessionId = sessionId
+        }
+
+        override fun getClientSessionId(): String? = clientSessionId
+
+        override fun setClientSessionId(clientSessionId: String?) {
+            this.clientSessionId = clientSessionId
+        }
+
+        override fun getPrimaryMemberId(): String? = primaryMemberId
+
+        override fun setPrimaryMemberId(memberId: String?) {
+            primaryMemberId = memberId
+        }
+
+        override fun getShareCode(): String? = shareCode
+
+        override fun setShareCode(shareCode: String?) {
+            this.shareCode = shareCode
+        }
+
+        override fun getSessionUpdatedAtMs(): Long? = updatedAtMs
+
+        override fun setSessionUpdatedAtMs(updatedAtMs: Long?) {
+            this.updatedAtMs = updatedAtMs
+        }
+
+        override fun clear() {
+            sessionId = null
+            clientSessionId = null
+            primaryMemberId = null
+            shareCode = null
+            updatedAtMs = null
+        }
+    }
+
     private class AllowAllAccessManager : ContentAccessManager {
         private val _gate =
             MutableStateFlow(
@@ -236,6 +301,7 @@ class CreatorAssistantListScreenTest {
             memberId: String?,
             isNsfwHint: Boolean?,
             ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
+            tags: List<String>?,
         ): ContentAccessDecision {
             calls += 1
             return if (calls == 1) {
@@ -248,13 +314,28 @@ class CreatorAssistantListScreenTest {
 
     @Test
     fun openSessionBlockedShowsErrorAndNoNavigate() {
+        val characterRepository = FakeCharacterRepository()
         val viewModel =
             CreatorAssistantListViewModel(
                 repository = FakeCreatorAssistantRepository(),
                 resolveContentAccess =
                     ToggleAccessUseCase(
                         accessManager = AllowAllAccessManager(),
-                        characterRepository = FakeCharacterRepository(),
+                        characterRepository = characterRepository,
+                    ),
+            )
+        val moderationViewModel =
+            ModerationViewModel(
+                reportRepository = FakeReportRepository(),
+                chatSessionStore = FakeChatSessionStore(),
+                blockCharacterUseCase =
+                    BlockCharacterUseCase(
+                        characterRepository = characterRepository,
+                        resolveContentAccess =
+                            ResolveContentAccessUseCase(
+                                accessManager = AllowAllAccessManager(),
+                                characterRepository = characterRepository,
+                            ),
                     ),
             )
         var openedSessionId: String? = null
@@ -262,6 +343,7 @@ class CreatorAssistantListScreenTest {
         composeRule.setContent {
             CreatorAssistantListScreen(
                 viewModel = viewModel,
+                moderationViewModel = moderationViewModel,
                 onBack = {},
                 onOpenSession = { openedSessionId = it },
                 contentGate =

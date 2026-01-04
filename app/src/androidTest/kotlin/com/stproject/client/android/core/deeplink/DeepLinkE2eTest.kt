@@ -5,10 +5,13 @@ import android.net.Uri
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.lifecycle.ViewModelProvider
 import com.stproject.client.android.MainActivity
+import com.stproject.client.android.R
 import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.auth.AuthService
 import com.stproject.client.android.core.auth.AuthTokenStore
@@ -35,6 +38,8 @@ import com.stproject.client.android.domain.model.CreatorAssistantDraft
 import com.stproject.client.android.domain.model.CreatorAssistantDraftResult
 import com.stproject.client.android.domain.model.CreatorAssistantPublishResult
 import com.stproject.client.android.domain.model.CreatorAssistantSessionHistory
+import com.stproject.client.android.domain.model.FanBadge
+import com.stproject.client.android.domain.model.Persona
 import com.stproject.client.android.domain.model.ReportReasonMeta
 import com.stproject.client.android.domain.model.ShareCodeInfo
 import com.stproject.client.android.domain.model.UserConfig
@@ -55,6 +60,9 @@ import com.stproject.client.android.domain.repository.CreatorCharactersResult
 import com.stproject.client.android.domain.repository.CreatorListResult
 import com.stproject.client.android.domain.repository.CreatorRepository
 import com.stproject.client.android.domain.repository.DecorationRepository
+import com.stproject.client.android.domain.repository.FanBadgeListResult
+import com.stproject.client.android.domain.repository.FanBadgePurchaseResult
+import com.stproject.client.android.domain.repository.FanBadgeRepository
 import com.stproject.client.android.domain.repository.IapCatalog
 import com.stproject.client.android.domain.repository.IapRepository
 import com.stproject.client.android.domain.repository.IapRestoreRequest
@@ -63,6 +71,7 @@ import com.stproject.client.android.domain.repository.IapTransactionRequest
 import com.stproject.client.android.domain.repository.IapTransactionResult
 import com.stproject.client.android.domain.repository.NotificationListResult
 import com.stproject.client.android.domain.repository.NotificationRepository
+import com.stproject.client.android.domain.repository.PersonaRepository
 import com.stproject.client.android.domain.repository.PresetRepository
 import com.stproject.client.android.domain.repository.ReportRepository
 import com.stproject.client.android.domain.repository.SocialListResult
@@ -144,6 +153,14 @@ class DeepLinkE2eTest {
 
     @BindValue
     @JvmField
+    val fanBadgeRepository: FanBadgeRepository = FakeFanBadgeRepository()
+
+    @BindValue
+    @JvmField
+    val personaRepository: PersonaRepository = FakePersonaRepository()
+
+    @BindValue
+    @JvmField
     val iapRepository: IapRepository = FakeIapRepository()
 
     @BindValue
@@ -173,6 +190,7 @@ class DeepLinkE2eTest {
     @Before
     fun setUp() {
         hiltRule.inject()
+        fakeAuthTokenStore.updateTokens("test-access", "test-refresh", 3600)
     }
 
     @After
@@ -216,6 +234,41 @@ class DeepLinkE2eTest {
             composeRule.onAllNodesWithTag("chat.send").fetchSemanticsNodes().isNotEmpty()
         }
         composeRule.onNodeWithTag("chat.send").assertIsDisplayed()
+    }
+
+    @Test
+    fun deepLinkShareCodeRequiresAgeVerification() {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("stproject://share/c/code-123"))
+        val authViewModel = ViewModelProvider(composeRule.activity).get(AuthViewModel::class.java)
+        val complianceViewModel = ViewModelProvider(composeRule.activity).get(ComplianceViewModel::class.java)
+        val fakeChatRepository = chatRepository as FakeChatRepository
+        val fakeUserRepository = userRepository as FakeUserRepository
+        fakeUserRepository.setAgeVerified(false)
+        composeRule.runOnIdle {
+            complianceViewModel.load()
+        }
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            authViewModel.uiState.value.isAuthenticated
+        }
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            val state = complianceViewModel.uiState.value
+            state.consentLoaded && !state.consentRequired && !state.ageVerified
+        }
+
+        composeRule.activityRule.scenario.onActivity { activity ->
+            deliverDeepLink(activity, intent)
+        }
+
+        composeRule.waitUntil(timeoutMillis = 10_000) {
+            composeRule.onAllNodesWithTag("age.verify.dialog").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("age.verify.dialog").assertIsDisplayed()
+        composeRule.runOnIdle {
+            if (fakeChatRepository.lastStartMemberId != null) {
+                throw AssertionError("Expected deep link to be blocked until age verification.")
+            }
+        }
     }
 
     @Test
@@ -360,6 +413,10 @@ private class FakeUserRepository : UserRepository {
     }
 
     override suspend fun deleteMe() = Unit
+
+    fun setAgeVerified(value: Boolean) {
+        config = config.copy(ageVerified = value)
+    }
 }
 
 private class FakeCharacterRepository : CharacterRepository {
@@ -468,13 +525,13 @@ private class FakeChatRepository : ChatRepository {
         swipeId: Int?,
     ) = Unit
 
-    override suspend fun loadSessionVariables(): Map<String, Any> = emptyMap()
+    override suspend fun loadSessionVariables(): Map<String, Any?> = emptyMap()
 
-    override suspend fun updateSessionVariables(variables: Map<String, Any>) = Unit
+    override suspend fun updateSessionVariables(variables: Map<String, Any?>) = Unit
 
     override suspend fun updateMessageVariables(
         messageId: String,
-        swipesData: List<Map<String, Any>>,
+        swipesData: List<Map<String, Any?>>,
     ) = Unit
 
     override suspend fun clearLocalSession() = Unit
@@ -487,6 +544,84 @@ private class FakeChatRepository : ChatRepository {
         startSessionGate?.complete(Unit)
         startSessionGate = null
     }
+}
+
+private class FakeFanBadgeRepository : FanBadgeRepository {
+    override suspend fun listCreatorBadges(
+        creatorId: String,
+        pageNum: Int,
+        pageSize: Int,
+    ): FanBadgeListResult {
+        return FanBadgeListResult(
+            items = emptyList(),
+            total = 0,
+            hasMore = false,
+            pageNum = pageNum,
+            pageSize = pageSize,
+        )
+    }
+
+    override suspend fun listPurchasedBadges(): FanBadgeListResult {
+        return FanBadgeListResult(
+            items = emptyList(),
+            total = 0,
+            hasMore = false,
+            pageNum = 1,
+            pageSize = 20,
+        )
+    }
+
+    override suspend fun purchaseBadge(badgeId: String): FanBadgePurchaseResult {
+        return FanBadgePurchaseResult(ok = true, userBadgeId = null)
+    }
+
+    override suspend fun equipBadge(
+        badgeId: String,
+        equip: Boolean,
+    ) = Unit
+}
+
+private class FakePersonaRepository : PersonaRepository {
+    override suspend fun listPersonas(): List<Persona> = emptyList()
+
+    override suspend fun createPersona(
+        name: String,
+        description: String?,
+        avatarUrl: String?,
+        isDefault: Boolean,
+    ): Persona {
+        return Persona(
+            id = "persona-1",
+            userId = "user-1",
+            name = name,
+            description = description ?: "",
+            avatarUrl = avatarUrl,
+            isDefault = isDefault,
+            createdAt = "",
+            updatedAt = "",
+        )
+    }
+
+    override suspend fun updatePersona(
+        personaId: String,
+        name: String,
+        description: String?,
+        avatarUrl: String?,
+        isDefault: Boolean,
+    ): Persona {
+        return Persona(
+            id = personaId,
+            userId = "user-1",
+            name = name,
+            description = description ?: "",
+            avatarUrl = avatarUrl,
+            isDefault = isDefault,
+            createdAt = "",
+            updatedAt = "",
+        )
+    }
+
+    override suspend fun deletePersona(personaId: String) = Unit
 }
 
 private class FakeReportRepository : ReportRepository {
@@ -510,7 +645,7 @@ private class FakeCommentRepository : CommentRepository {
         pageNum: Int,
         pageSize: Int,
     ): CommentListResult {
-        return CommentListResult(items = emptyList(), total = 0, hasMore = false)
+        return CommentListResult(items = emptyList(), total = 0, hasMore = false, character = null)
     }
 
     override suspend fun createComment(

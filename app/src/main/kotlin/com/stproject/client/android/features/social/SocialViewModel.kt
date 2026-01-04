@@ -36,7 +36,7 @@ class SocialViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -93,7 +93,7 @@ class SocialViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(

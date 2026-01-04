@@ -50,21 +50,21 @@ class FollowCharacterUseCase
         private val characterRepository: CharacterRepository,
         private val resolveContentAccess: ResolveContentAccessUseCase,
     ) {
-    suspend fun execute(
-        characterId: String,
-        isNsfwHint: Boolean?,
-        value: Boolean,
-        ageRatingHint: AgeRating? = null,
-    ): GuardedActionResult<com.stproject.client.android.domain.model.CharacterFollowResult> {
-        val access =
-            resolveContentAccess.execute(
-                memberId = characterId,
-                isNsfwHint = isNsfwHint,
-                ageRatingHint = ageRatingHint,
-            )
-        if (access is ContentAccessDecision.Blocked) {
-            return GuardedActionResult.Blocked(access)
-        }
+        suspend fun execute(
+            characterId: String,
+            isNsfwHint: Boolean?,
+            value: Boolean,
+            ageRatingHint: AgeRating? = null,
+        ): GuardedActionResult<com.stproject.client.android.domain.model.CharacterFollowResult> {
+            val access =
+                resolveContentAccess.execute(
+                    memberId = characterId,
+                    isNsfwHint = isNsfwHint,
+                    ageRatingHint = ageRatingHint,
+                )
+            if (access is ContentAccessDecision.Blocked) {
+                return GuardedActionResult.Blocked(access)
+            }
             val result = characterRepository.followCharacter(characterId, value)
             return GuardedActionResult.Allowed(result)
         }
@@ -76,21 +76,21 @@ class BlockCharacterUseCase
         private val characterRepository: CharacterRepository,
         private val resolveContentAccess: ResolveContentAccessUseCase,
     ) {
-    suspend fun execute(
-        characterId: String,
-        isNsfwHint: Boolean?,
-        value: Boolean,
-        ageRatingHint: AgeRating? = null,
-    ): GuardedActionResult<Unit> {
-        val access =
-            resolveContentAccess.execute(
-                memberId = characterId,
-                isNsfwHint = isNsfwHint,
-                ageRatingHint = ageRatingHint,
-            )
-        if (access is ContentAccessDecision.Blocked) {
-            return GuardedActionResult.Blocked(access)
-        }
+        suspend fun execute(
+            characterId: String,
+            isNsfwHint: Boolean?,
+            value: Boolean,
+            ageRatingHint: AgeRating? = null,
+        ): GuardedActionResult<Unit> {
+            val access =
+                resolveContentAccess.execute(
+                    memberId = characterId,
+                    isNsfwHint = isNsfwHint,
+                    ageRatingHint = ageRatingHint,
+                )
+            if (access is ContentAccessDecision.Blocked) {
+                return GuardedActionResult.Blocked(access)
+            }
             characterRepository.blockCharacter(characterId, value)
             return GuardedActionResult.Allowed(Unit)
         }

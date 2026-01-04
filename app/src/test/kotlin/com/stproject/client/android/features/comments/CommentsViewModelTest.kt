@@ -12,6 +12,7 @@ import com.stproject.client.android.domain.model.CommentLikeResult
 import com.stproject.client.android.domain.model.CommentListResult
 import com.stproject.client.android.domain.model.CommentSort
 import com.stproject.client.android.domain.model.CommentUser
+import com.stproject.client.android.domain.model.ContentSummary
 import com.stproject.client.android.domain.model.ShareCodeInfo
 import com.stproject.client.android.domain.model.UserConfig
 import com.stproject.client.android.domain.model.UserConfigUpdate
@@ -72,7 +73,19 @@ class CommentsViewModelTest : BaseUnitTest() {
             pageSize: Int,
         ): CommentListResult {
             val items = listOfNotNull(created ?: baseComment)
-            return CommentListResult(items = items, total = items.size, hasMore = false)
+            return CommentListResult(
+                items = items,
+                total = items.size,
+                hasMore = false,
+                character =
+                    ContentSummary(
+                        characterId = characterId,
+                        isNsfw = false,
+                        moderationAgeRating = null,
+                        tags = emptyList(),
+                        visibility = "public",
+                    ),
+            )
         }
 
         override suspend fun createComment(
@@ -172,7 +185,6 @@ class CommentsViewModelTest : BaseUnitTest() {
             val vm =
                 CommentsViewModel(
                     commentRepository = FakeCommentRepository(),
-                    characterRepository = FakeCharacterRepository(),
                     userRepository = FakeUserRepository(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(
@@ -196,7 +208,6 @@ class CommentsViewModelTest : BaseUnitTest() {
             val vm =
                 CommentsViewModel(
                     commentRepository = repo,
-                    characterRepository = FakeCharacterRepository(),
                     userRepository = FakeUserRepository(),
                     resolveContentAccess =
                         ResolveContentAccessUseCase(

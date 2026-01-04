@@ -6,6 +6,7 @@ import com.stproject.client.android.core.network.CreatorCharacterDto
 import com.stproject.client.android.core.network.StCreatorApi
 import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.CreatorCharacter
+import com.stproject.client.android.domain.model.CreatorPreview
 import com.stproject.client.android.domain.model.CreatorSummary
 import com.stproject.client.android.domain.repository.CreatorCharactersResult
 import com.stproject.client.android.domain.repository.CreatorListResult
@@ -80,6 +81,24 @@ class HttpCreatorRepository
                 bio = bio?.trim()?.takeIf { it.isNotEmpty() },
                 followStatus = followStatus ?: 0,
                 isBlocked = isBlocked ?: false,
+                previewCharacters = characters?.mapNotNull { it.toPreviewDomain() } ?: emptyList(),
+            )
+        }
+
+        private fun com.stproject.client.android.core.network.CreatorPreviewDto.toPreviewDomain(): CreatorPreview? {
+            val idValue =
+                id?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: characterId?.trim()?.takeIf { it.isNotEmpty() }
+            if (idValue == null) return null
+            return CreatorPreview(
+                id = idValue,
+                name = name?.trim().orEmpty(),
+                backgroundUrl = backgroundUrl?.trim()?.takeIf { it.isNotEmpty() },
+                tags = tags ?: emptyList(),
+                creatorName = creatorName?.trim()?.takeIf { it.isNotEmpty() },
+                isNsfw = isNsfw,
+                moderationAgeRating = AgeRating.from(moderationAgeRating),
+                visibility = visibility?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
 
@@ -93,7 +112,7 @@ class HttpCreatorRepository
                 avatarUrl = avatarUrl?.trim()?.takeIf { it.isNotEmpty() },
                 backgroundUrl = backgroundUrl?.trim()?.takeIf { it.isNotEmpty() },
                 tags = tags ?: emptyList(),
-                isNsfw = isNsfw ?: false,
+                isNsfw = isNsfw,
                 moderationAgeRating = AgeRating.from(moderationAgeRating),
                 creatorId = creatorId?.trim()?.takeIf { it.isNotEmpty() },
                 creatorName = creatorName?.trim()?.takeIf { it.isNotEmpty() },

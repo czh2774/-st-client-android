@@ -6,6 +6,8 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.core.network.AppError
+import com.stproject.client.android.core.network.toAppError
 import com.stproject.client.android.domain.repository.WalletRepository
 import com.stproject.client.android.domain.usecase.ResolveContentAccessUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,7 +34,12 @@ class WalletViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                error = AppError.Validation(access.userMessage()),
+                            )
+                        }
                         return@launch
                     }
                     val balance = walletRepository.getBalance()
@@ -47,10 +54,10 @@ class WalletViewModel
                         )
                     }
                 } catch (e: ApiException) {
-                    _uiState.update { it.copy(isLoading = false, error = e.userMessage ?: e.message) }
+                    _uiState.update { it.copy(isLoading = false, error = e.toAppError()) }
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
-                    _uiState.update { it.copy(isLoading = false, error = "unexpected error") }
+                    _uiState.update { it.copy(isLoading = false, error = AppError.Unknown("unexpected error")) }
                 }
             }
         }
@@ -64,7 +71,12 @@ class WalletViewModel
                 try {
                     val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
-                        _uiState.update { it.copy(isLoading = false, error = access.userMessage()) }
+                        _uiState.update {
+                            it.copy(
+                                isLoading = false,
+                                error = AppError.Validation(access.userMessage()),
+                            )
+                        }
                         return@launch
                     }
                     val result = walletRepository.listTransactions(pageNum = nextPage, pageSize = state.pageSize)
@@ -77,10 +89,10 @@ class WalletViewModel
                         )
                     }
                 } catch (e: ApiException) {
-                    _uiState.update { it.copy(isLoading = false, error = e.userMessage ?: e.message) }
+                    _uiState.update { it.copy(isLoading = false, error = e.toAppError()) }
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
-                    _uiState.update { it.copy(isLoading = false, error = "unexpected error") }
+                    _uiState.update { it.copy(isLoading = false, error = AppError.Unknown("unexpected error")) }
                 }
             }
         }

@@ -34,8 +34,9 @@ class ResolveContentAccessUseCaseTest {
     }
 
     private class FakeCharacterRepository(
-        private val isNsfw: Boolean,
+        private val isNsfw: Boolean?,
         private val ageRating: AgeRating? = null,
+        private val tags: List<String> = emptyList(),
     ) : CharacterRepository {
         var detailCalls = 0
 
@@ -52,7 +53,7 @@ class ResolveContentAccessUseCaseTest {
                 id = characterId,
                 name = "Test",
                 description = "",
-                tags = emptyList(),
+                tags = tags,
                 creatorName = null,
                 isNsfw = isNsfw,
                 moderationAgeRating = ageRating,
@@ -148,5 +149,110 @@ class ResolveContentAccessUseCaseTest {
                 result,
             )
             assertEquals(1, repo.detailCalls)
+        }
+
+    @Test
+    fun `blocks when tags are blocked without fetching detail`() =
+        runTest {
+            val gate =
+                ContentGate(
+                    consentLoaded = true,
+                    consentRequired = false,
+                    ageVerified = true,
+                    allowNsfwPreference = true,
+                    blockedTags = listOf("spoilers"),
+                )
+            val repo = FakeCharacterRepository(isNsfw = false, tags = emptyList())
+            val useCase =
+                ResolveContentAccessUseCase(
+                    accessManager = FakeAccessManager(gate),
+                    characterRepository = repo,
+                )
+            val result = useCase.execute(memberId = "char-1", isNsfwHint = false, tags = listOf("Spoilers"))
+
+            assertEquals(
+                ContentAccessDecision.Blocked(ContentBlockReason.TAGS_BLOCKED),
+                result,
+            )
+            assertEquals(0, repo.detailCalls)
+        }
+
+    @Test
+    fun `blocks when blocked tags resolved from detail`() =
+        runTest {
+            val gate =
+                ContentGate(
+                    consentLoaded = true,
+                    consentRequired = false,
+                    ageVerified = true,
+                    allowNsfwPreference = true,
+                    blockedTags = listOf("gore"),
+                )
+            val repo = FakeCharacterRepository(isNsfw = false, tags = listOf("gore"))
+            val useCase =
+                ResolveContentAccessUseCase(
+                    accessManager = FakeAccessManager(gate),
+                    characterRepository = repo,
+                )
+            val result = useCase.execute(memberId = "char-1", isNsfwHint = false)
+
+            assertEquals(
+                ContentAccessDecision.Blocked(ContentBlockReason.TAGS_BLOCKED),
+                result,
+            )
+            assertEquals(1, repo.detailCalls)
+        }
+
+    @Test
+    fun `fails closed when blocked tags need resolution and detail fetch fails`() =
+        runTest {
+            val gate =
+                ContentGate(
+                    consentLoaded = true,
+                    consentRequired = false,
+                    ageVerified = true,
+                    allowNsfwPreference = true,
+                    blockedTags = listOf("violence"),
+                )
+            val repo =
+                object : CharacterRepository {
+                    override suspend fun queryCharacters(
+                        cursor: String?,
+                        limit: Int?,
+                        sortBy: String?,
+                        isNsfw: Boolean?,
+                    ) = emptyList<CharacterSummary>()
+
+                    override suspend fun getCharacterDetail(characterId: String): CharacterDetail {
+                        throw IllegalStateException("boom")
+                    }
+
+                    override suspend fun resolveShareCode(shareCode: String): String? = null
+
+                    override suspend fun generateShareCode(characterId: String): ShareCodeInfo? = null
+
+                    override suspend fun blockCharacter(
+                        characterId: String,
+                        value: Boolean,
+                    ) = Unit
+
+                    override suspend fun followCharacter(
+                        characterId: String,
+                        value: Boolean,
+                    ): CharacterFollowResult {
+                        return CharacterFollowResult(totalFollowers = 0, isFollowed = false)
+                    }
+                }
+            val useCase =
+                ResolveContentAccessUseCase(
+                    accessManager = FakeAccessManager(gate),
+                    characterRepository = repo,
+                )
+            val result = useCase.execute(memberId = "char-1", isNsfwHint = false)
+
+            assertEquals(
+                ContentAccessDecision.Blocked(ContentBlockReason.TAGS_BLOCKED),
+                result,
+            )
         }
 }

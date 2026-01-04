@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
@@ -40,6 +41,7 @@ fun AgeVerificationDialog(
 
     AlertDialog(
         onDismissRequest = { if (allowDismiss) onDismiss() },
+        modifier = Modifier.testTag("age.verify.dialog"),
         title = { Text(stringResource(R.string.age_verify_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

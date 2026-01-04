@@ -6,12 +6,14 @@ architecture, and test coverage. Source of truth: local codebase only.
 ## Executive Summary
 
 - Android is a partial implementation of the React client. Core chat + explore exist,
-  but major product areas are still missing (red packet, fan badges,
-  creator tooling completeness, personas/masks/extensions, and settings customization gaps).
+  but major product areas are still missing (red packet, extensions,
+  creator tooling completeness, and settings customization gaps). Fan badges and
+  personas/masks are implemented but feature-flagged for Play builds.
 - Compliance foundations exist (age verification, privacy/terms consent, reporting,
   blocking). NSFW gating now covers core entry points and syncs server blocked-tags,
   with centralized access policy and chat entry enforcement. UI-level gating
-  still dominates, and deep-link entry is not covered, keeping 18+ compliance risk high.
+  still dominates, and deep-link coverage is limited to share codes, keeping
+  18+ compliance risk high.
 - Architecture is still in a Phase 0 shape: Compose Navigation now covers tabs
   and key flows, but deep links and nested graphs are limited; the use-case
   layer is thin, local persistence is limited, and tests are shallow.
@@ -44,7 +46,7 @@ Legend: DONE / PARTIAL / MISSING
 - Creator list + characters: React DONE, Android DONE (basic)
 - Creator assistant list/chat: React DONE, Android DONE (basic)
 - Create/role form: React DONE, Android PARTIAL (create/edit + import/export + parse-text/file + PNG export)
-- Creator badges: React DONE, Android MISSING
+- Creator badges: React DONE, Android DONE (feature-flagged)
 
 ### Social / Profile / Notifications
 - Notifications list: React DONE, Android DONE (basic)
@@ -63,8 +65,8 @@ Legend: DONE / PARTIAL / MISSING
 - Age verification + user config sync: React DONE, Android DONE (self-entry)
 
 ### Other React Features Missing on Android
-- Personas, masks, extensions
-- Fan badges, red packet (wallet/transactions partially implemented)
+- Extensions
+- Red packet (wallet/transactions partially implemented)
 
 ## 18+ Compliance Readiness (Google Play Risk Lens)
 
@@ -108,7 +110,7 @@ Existing tests: a handful of unit tests + minimal instrumentation coverage.
 
 Missing:
 - NSFW gating coverage is partial; age verification flows still untested.
-- Share-code resolve and direct navigation guardrails.
+- Share-code resolve and direct navigation guardrails (partial).
 - Chat session lifecycle (restore partially covered; create/open/multi-session still missing).
 - Billing flow (purchase verification + error paths).
 - Regression tests for report/block flows and moderation UX.

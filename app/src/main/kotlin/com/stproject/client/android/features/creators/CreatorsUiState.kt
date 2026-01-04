@@ -9,4 +9,5 @@ data class CreatorsUiState(
     val hasMore: Boolean = false,
     val nextCursor: String? = null,
     val searchKeyword: String = "",
+    val sortBy: String = "recommend",
 )

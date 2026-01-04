@@ -14,6 +14,7 @@ import com.stproject.client.android.core.network.CreatorAssistantStartRequestDto
 import com.stproject.client.android.core.network.CreatorAssistantSubCharacterDto
 import com.stproject.client.android.core.network.CreatorAssistantUpdateDraftRequestDto
 import com.stproject.client.android.core.network.StCreatorAssistantApi
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.CreatorAssistantChatResult
 import com.stproject.client.android.domain.model.CreatorAssistantDraft
 import com.stproject.client.android.domain.model.CreatorAssistantDraftResult
@@ -196,6 +197,9 @@ class HttpCreatorAssistantRepository
                 characterType = characterType?.trim()?.takeIf { it.isNotEmpty() },
                 status = status?.trim()?.takeIf { it.isNotEmpty() },
                 draftName = draftName?.trim()?.takeIf { it.isNotEmpty() },
+                draftIsNsfw = draftIsNsfw,
+                draftTags = draftTags ?: emptyList(),
+                draftModerationAgeRating = AgeRating.from(draftModerationAgeRating),
                 messageCount = messageCount ?: 0,
                 createdAt = createdAt?.trim()?.takeIf { it.isNotEmpty() },
                 updatedAt = updatedAt?.trim()?.takeIf { it.isNotEmpty() },
@@ -266,7 +270,7 @@ class HttpCreatorAssistantRepository
                 exampleDialogs = exampleDialogs?.trim()?.takeIf { it.isNotEmpty() },
                 tags = tags ?: emptyList(),
                 gender = gender ?: 0,
-                isNsfw = isNsfw ?: false,
+                isNsfw = isNsfw,
                 characterType = characterType?.trim()?.takeIf { it.isNotEmpty() },
                 parentCharacterId = parentCharacterId?.trim()?.takeIf { it.isNotEmpty() },
                 subCharacters = subCharacters?.map { it.toDomain() } ?: emptyList(),

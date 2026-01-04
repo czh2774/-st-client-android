@@ -17,14 +17,14 @@
 - **异步处理**: Kotlin Coroutines + Flow (StateFlow)
 - **网络**: Retrofit 2 + OkHttp 4 (含 SSE 支持)
 - **持久化**:
-  - **现状**：未落地（Room 依赖已引入但尚未使用）
-  - **目标态**：Room Database（聊天会话/消息缓存）
+  - **现状**：Room 已落地（聊天会话/消息缓存，多会话 + 驱逐）
+  - **目标态**：Room Database（聊天会话/消息缓存 + 增量同步）
 - **导航**:
-  - **现状**：单 Activity + 单 Screen
-  - **目标态**：Compose Navigation（按 feature 拆分）
+  - **现状**：Compose Navigation 已覆盖 tabs 与主要流程（深链仍有限）
+  - **目标态**：Compose Navigation（按 feature 拆分 + 完整深链）
 - **图片加载**:
-  - **现状**：未引入
-  - **目标态**：Coil（如需要头像/卡面等）
+  - **现状**：Coil 已引入（头像/卡面/背景等）
+  - **目标态**：Coil（性能与缓存策略细化）
 
 ## 3. 架构设计 (Architecture)
 
@@ -76,9 +76,10 @@
 
 ### 4.3 离线与同步
 现状：
-- 使用 Room 缓存会话消息（单 session 简化版），重启可恢复最近对话。
+- 使用 Room 缓存会话消息（多会话 + 驱逐），重启可恢复最近对话。
 - 会话 ID 缺失时通过 `POST /chats` 创建，并持久化到加密 SharedPreferences。
   - `members[0]` 依赖 `ST_DEFAULT_CHARACTER_ID`。
+- 支持恢复最近一次会话与本地多会话列表。
 
 目标态：
 - **本地优先**: 使用 Room 缓存最近的聊天会话

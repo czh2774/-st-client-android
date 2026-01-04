@@ -4,6 +4,7 @@ Legend: DONE / PARTIAL / MISSING.
 React routes based on `st-client-React/src/routes`. API list is from
 `st-client-android/app/src/main/kotlin/com/stproject/client/android/core/network/*Api.kt`
 plus direct chat endpoints in `HttpChatRepository`.
+Play shipping scope (authoritative for Play builds) is tracked in `PLAY_PARITY_TARGET.md`.
 
 ## Chat & Sessions
 | Feature | React route | Android status | Android API |
@@ -35,7 +36,8 @@ Deep link / share-code entry:
 | Creator characters | `/app-shell/creators` | DONE | `GET creators/{id}/characters` |
 | Creator assistant list/chat | `/creator-assistant` | DONE (basic) | `POST creator-assistant/start`, `GET creator-assistant/sessions`, `POST creator-assistant/chat` |
 | Assistant draft/publish | `/creator-assistant` | DONE (basic) | `POST creator-assistant/generate-draft`, `POST creator-assistant/update-draft`, `POST creator-assistant/publish` |
-| Creator badges | `/app-shell/creator/$creatorId/badges` | MISSING | TBD |
+| Creator badges | `/app-shell/creator/$creatorId/badges` | DONE (feature-flagged via BADGES_ENABLED) | `GET users/fan-badges?creatorId=...`, `POST users/fan-badges/purchase` |
+| My badges | `/app-shell/fan_badges` | DONE (feature-flagged via BADGES_ENABLED) | `GET users/fan-badges/purchased`, `POST users/fan-badges/equip` |
 | Create / role form | `/create/form` | PARTIAL (create/edit + import/export + parse-text/file + PNG export) | `POST/PUT cards`, `GET characters/{id}/export`, `GET characters/{id}/export-png`, `POST cards/parse-text`, `POST cards/parse-file`, `GET cards/template` |
 
 ## Social / Notifications / Profile
@@ -53,13 +55,14 @@ Deep link / share-code entry:
 | Purchase submit / restore | `/app-shell/shop` | PARTIAL (server config required) | `POST iap/transactions`, `POST iap/restore` |
 | Wallet balance | `/app-shell/wallet` | PARTIAL | `GET wallet/balance` |
 | Wallet transactions | `/app-shell/transactions` | PARTIAL | `GET wallet/transactions` |
-| Red packet | `/app-shell/red-packet` | MISSING | TBD |
+| Red packet | `/app-shell/red-packet` | MISSING (flag only) | no Android API |
 
 ## Settings / Compliance
 | Feature | React route | Android status | Android API |
 | --- | --- | --- | --- |
 | Terms acceptance | `/settings` | DONE | `POST users/accept-tos` |
 | Age verification / user config | `/settings` | DONE | `GET users/config`, `PUT users/config` |
+| Personas | `/app-shell/chat` | DONE (Settings > Personas) | `GET/POST/PUT/DELETE personas` |
 | Theme / language | `/theme_select`, `/language_select` | PARTIAL (local only) | no API |
 | Backgrounds / decorations / model presets | `/settings/*` | PARTIAL (backgrounds + decorations done; model presets selection only) | `GET backgrounds/all`, `POST backgrounds/upload`, `POST backgrounds/rename`, `POST backgrounds/delete`, `GET users/decorations`, `POST users/decorations/equip`, `GET presets` |
 
@@ -69,7 +72,5 @@ Deep link / share-code entry:
 | Comment list + create + like + delete + replies | `/app-shell/explore` (comments sheet) | DONE (basic) | `GET comments`, `POST comments`, `POST comments/{id}/like`, `DELETE comments/{id}` |
 
 ## React-Only Features (Missing on Android)
-- Personas
-- Masks
-- Extensions
-- Fan badges / creator badges
+- Extensions (permanently disabled on Android)
+- Red packet (Play: excluded until fixed-credit design passes policy review)

@@ -8,8 +8,8 @@ import com.stproject.client.android.BuildConfig
  * Best practice: read from build config / flavors. For now this is a placeholder so
  * call sites don't hardcode URLs.
  */
-class StBaseUrlProvider {
-    fun baseUrl(): String {
+open class StBaseUrlProvider {
+    open fun baseUrl(): String {
         val raw = BuildConfig.API_BASE_URL.trim()
         if (raw.isEmpty()) {
             error("API base URL is empty.")

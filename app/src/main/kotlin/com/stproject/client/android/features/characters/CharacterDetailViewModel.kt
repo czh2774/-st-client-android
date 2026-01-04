@@ -39,6 +39,7 @@ class CharacterDetailViewModel
                             memberId = characterId,
                             isNsfwHint = detail.isNsfw,
                             ageRatingHint = detail.moderationAgeRating,
+                            tags = detail.tags,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
@@ -68,6 +69,7 @@ class CharacterDetailViewModel
                             memberId = characterId,
                             isNsfwHint = _uiState.value.detail?.isNsfw,
                             ageRatingHint = _uiState.value.detail?.moderationAgeRating,
+                            tags = _uiState.value.detail?.tags,
                         )
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update { it.copy(error = access.userMessage()) }

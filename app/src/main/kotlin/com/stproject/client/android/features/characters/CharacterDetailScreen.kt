@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.ContentGateBlockKind
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.features.chat.ModerationViewModel
@@ -120,9 +121,22 @@ fun CharacterDetailScreen(
             }
 
             val detail = uiState.detail
-            val accessRestricted = contentGate.isRestricted(detail?.isNsfw, detail?.moderationAgeRating)
-            if (detail != null) {
-                val nsfwBlocked = contentGate.isNsfwBlocked(detail.isNsfw, detail.moderationAgeRating)
+            val blockKind =
+                detail?.let { contentGate.blockKind(it.isNsfw, it.moderationAgeRating, it.tags) }
+            val tagBlocked = blockKind == ContentGateBlockKind.TAGS_BLOCKED
+            val accessRestricted =
+                blockKind != null && blockKind != ContentGateBlockKind.TAGS_BLOCKED
+            if (tagBlocked) {
+                Text(
+                    text = stringResource(R.string.content_access_blocked_title),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.content_blocked_filters_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            } else if (detail != null) {
+                val nsfwBlocked = blockKind == ContentGateBlockKind.NSFW_DISABLED
                 Text(text = detail.name, style = MaterialTheme.typography.headlineSmall)
                 if (detail.creatorName != null) {
                     Text(
@@ -149,7 +163,10 @@ fun CharacterDetailScreen(
                         text = stringResource(R.string.content_mature_disabled_inline),
                         color = MaterialTheme.colorScheme.error,
                     )
-                } else if (contentGate.nsfwAllowed && resolveNsfwHint(detail.isNsfw, detail.moderationAgeRating) == true) {
+                } else if (
+                    contentGate.nsfwAllowed &&
+                    resolveNsfwHint(detail.isNsfw, detail.moderationAgeRating) == true
+                ) {
                     RestrictedContentNotice(
                         onReport = {
                             reportOpen = true
@@ -162,13 +179,13 @@ fun CharacterDetailScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = { onStartChat(characterId, null) },
-                    enabled = detail != null && !uiState.isLoading && !accessRestricted,
+                    enabled = detail != null && !uiState.isLoading && !accessRestricted && !tagBlocked,
                 ) {
                     Text(stringResource(R.string.common_start_chat))
                 }
                 Button(
                     onClick = { viewModel.followCharacter(characterId, detail?.isFollowed == false) },
-                    enabled = detail != null && !uiState.isLoading,
+                    enabled = detail != null && !uiState.isLoading && !tagBlocked,
                 ) {
                     Text(
                         stringResource(
@@ -182,19 +199,19 @@ fun CharacterDetailScreen(
                 }
                 Button(
                     onClick = { onOpenComments(characterId) },
-                    enabled = detail != null && !uiState.isLoading && !accessRestricted,
+                    enabled = detail != null && !uiState.isLoading && !accessRestricted && !tagBlocked,
                 ) {
                     Text(stringResource(R.string.common_comments))
                 }
                 Button(
                     onClick = { viewModel.generateShareCode(characterId) },
-                    enabled = detail != null && !uiState.isLoading && !accessRestricted,
+                    enabled = detail != null && !uiState.isLoading && !accessRestricted && !tagBlocked,
                 ) {
                     Text(stringResource(R.string.common_share))
                 }
             }
 
-            if (!uiState.shareUrl.isNullOrBlank()) {
+            if (!tagBlocked && !uiState.shareUrl.isNullOrBlank()) {
                 Text(
                     text = stringResource(R.string.chat_share_code_inline, uiState.shareUrl ?: ""),
                     style = MaterialTheme.typography.bodySmall,

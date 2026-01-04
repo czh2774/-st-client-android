@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,11 +37,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.RoundedCornerShape
 import coil.compose.AsyncImage
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.stproject.client.android.core.a2ui.A2UIBindingResolver
+import com.stproject.client.android.core.a2ui.A2UICatalog
 import com.stproject.client.android.core.a2ui.A2UIComponent
 import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.a2ui.A2UISurfaceState
@@ -123,17 +124,17 @@ private fun A2UINodeView(
     val component = surface.components[componentId] ?: return
 
     when (component.type) {
-        "Text" -> renderText(component, surface)
-        "Image" -> renderImage(component, surface)
-        "Button" -> renderButton(component, surface, onAction, isBusy, depth, maxDepth, visited)
-        "ChoiceButtons" -> renderChoiceButtons(component, surface, onAction, isBusy)
-        "Form" -> renderForm(component, surface, onAction, isBusy)
-        "Sheet" -> renderSheet(component, surface)
-        "PurchaseCTA" -> renderPurchaseCTA(component, surface, onAction, isBusy)
-        "OpenSettings" -> renderOpenSettings(component, surface, onAction, isBusy)
-        "Column" -> renderColumn(component, surface, onAction, isBusy, depth, maxDepth, visited)
-        "Row" -> renderRow(component, surface, onAction, isBusy, depth, maxDepth, visited)
-        "Group" -> renderColumn(component, surface, onAction, isBusy, depth, maxDepth, visited)
+        A2UICatalog.Components.TEXT -> renderText(component, surface)
+        A2UICatalog.Components.IMAGE -> renderImage(component, surface)
+        A2UICatalog.Components.BUTTON -> renderButton(component, surface, onAction, isBusy, depth, maxDepth, visited)
+        A2UICatalog.Components.CHOICE_BUTTONS -> renderChoiceButtons(component, surface, onAction, isBusy)
+        A2UICatalog.Components.FORM -> renderForm(component, surface, onAction, isBusy)
+        A2UICatalog.Components.SHEET -> renderSheet(component, surface)
+        A2UICatalog.Components.PURCHASE_CTA -> renderPurchaseCTA(component, surface, onAction, isBusy)
+        A2UICatalog.Components.OPEN_SETTINGS -> renderOpenSettings(component, surface, onAction, isBusy)
+        A2UICatalog.Components.COLUMN -> renderColumn(component, surface, onAction, isBusy, depth, maxDepth, visited)
+        A2UICatalog.Components.ROW -> renderRow(component, surface, onAction, isBusy, depth, maxDepth, visited)
+        A2UICatalog.Components.GROUP -> renderColumn(component, surface, onAction, isBusy, depth, maxDepth, visited)
         else -> Spacer(modifier = Modifier.height(0.dp))
     }
 
@@ -398,7 +399,7 @@ private fun renderPurchaseCTA(
         onClick = {
             onAction(
                 A2UIAction(
-                    name = "purchase",
+                    name = A2UICatalog.Actions.PURCHASE,
                     surfaceId = surface.surfaceId,
                     sourceComponentId = component.id,
                     context =
@@ -432,7 +433,7 @@ private fun renderOpenSettings(
         onClick = {
             onAction(
                 A2UIAction(
-                    name = "navigate",
+                    name = A2UICatalog.Actions.NAVIGATE,
                     surfaceId = surface.surfaceId,
                     sourceComponentId = component.id,
                     context = mapOf("destination" to destination),
@@ -674,11 +675,12 @@ private fun styleModifier(
     if (includeBackground) {
         val color = style.backgroundColor
         if (color != null) {
-            modifier = if (shape != null) {
-                modifier.background(color, shape)
-            } else {
-                modifier.background(color)
-            }
+            modifier =
+                if (shape != null) {
+                    modifier.background(color, shape)
+                } else {
+                    modifier.background(color)
+                }
         }
     }
     return modifier
@@ -706,8 +708,7 @@ private fun buttonColors(style: A2UIStyle?) =
         )
     }
 
-private fun buttonShape(style: A2UIStyle?): RoundedCornerShape? =
-    style?.cornerRadius?.let { RoundedCornerShape(it) }
+private fun buttonShape(style: A2UIStyle?): RoundedCornerShape? = style?.cornerRadius?.let { RoundedCornerShape(it) }
 
 private fun styleSpacing(
     style: A2UIStyle?,

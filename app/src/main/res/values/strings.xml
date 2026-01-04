@@ -33,6 +33,7 @@
     <string name="common_comments">Comments</string>
     <string name="compliance_loading">Completing compliance checks...</string>
     <string name="content_access_blocked_title">Content unavailable</string>
+    <string name="content_blocked_filters_body">This content is blocked by your content filters.</string>
     <string name="content_mature_disabled_title">Mature content disabled</string>
     <string name="content_mature_disabled_body">Enable 18+ content in Settings to continue.</string>
     <string name="content_mature_disabled_inline">Mature content disabled. Enable 18+ content in Settings.</string>
@@ -144,6 +145,10 @@
     <string name="settings_customize_title">Customization</string>
     <string name="settings_backgrounds_title">Backgrounds</string>
     <string name="settings_decorations_title">Decorations</string>
+    <string name="settings_personas_title">Personas</string>
+    <string name="settings_personas_manage">Manage Personas</string>
+    <string name="settings_badges_title">Fan Badges</string>
+    <string name="settings_badges_my">My Badges</string>
 
     <string name="model_presets_title">Model Presets</string>
     <string name="model_presets_use_default">Use default</string>
@@ -177,6 +182,38 @@
     <string name="backgrounds_delete_hint">This cannot be undone.</string>
     <string name="backgrounds_copy_link">Copy link</string>
 
+    <string name="personas_title">Personas</string>
+    <string name="personas_create_button">Create Persona</string>
+    <string name="personas_create_title">Create Persona</string>
+    <string name="personas_edit_title">Edit Persona</string>
+    <string name="personas_empty">No personas yet.</string>
+    <string name="personas_default_badge">Default</string>
+    <string name="personas_set_default">Set default</string>
+    <string name="personas_delete_title">Delete persona?</string>
+    <string name="personas_delete_body">This cannot be undone.</string>
+    <string name="personas_name_label">Name</string>
+    <string name="personas_name_placeholder">Persona name</string>
+    <string name="personas_description_label">Bio</string>
+    <string name="personas_description_placeholder">Short description</string>
+    <string name="personas_avatar_label">Avatar URL</string>
+    <string name="personas_avatar_placeholder">https://</string>
+
+    <string name="badges_title_my">My Fan Badges</string>
+    <string name="badges_title_creator">Creator Badges</string>
+    <string name="badges_empty_my">No badges yet.</string>
+    <string name="badges_empty_creator">No badges available.</string>
+    <string name="badges_equip">Equip</string>
+    <string name="badges_unequip">Unequip</string>
+    <string name="badges_equipped">Equipped</string>
+    <string name="badges_owned">Owned</string>
+    <string name="badges_level">Lv.%1$d</string>
+    <string name="badges_purchase_price">%1$d diamonds</string>
+    <string name="badges_purchase_title">Purchase badge?</string>
+    <string name="badges_purchase_confirm">Spend %1$d diamonds to purchase this badge.</string>
+
+    <string name="creator_badges_action">Badges</string>
+    <string name="feature_unavailable">Feature unavailable on this build.</string>
+
     <string name="decorations_title">Decorations</string>
     <string name="decorations_description">Manage owned frames, bubbles, and more.</string>
     <string name="decorations_empty">No decorations yet.</string>
@@ -196,6 +233,15 @@
     <string name="explore_share_title">Join with share code</string>
     <string name="explore_share_label">Share code or link</string>
     <string name="explore_share_join">Join</string>
+    <string name="explore_filters_title">Explore filters</string>
+    <string name="explore_search_label">Search</string>
+    <string name="explore_tags_label">Tags (comma separated)</string>
+    <string name="explore_sort_homepage">Homepage</string>
+    <string name="explore_sort_new">New</string>
+    <string name="explore_sort_recommend">Recommend</string>
+    <string name="explore_sort_trending">Trending</string>
+    <string name="explore_sort_all">All</string>
+    <string name="explore_sort_followed">Followed</string>
     <string name="explore_followers">Followers: %1$d</string>
 
     <string name="chats_updated">Updated: %1$s</string>
@@ -211,6 +257,11 @@
     <string name="creators_assistant">Creator Assistant</string>
     <string name="creators_create_role">Create Character</string>
     <string name="creators_search_label">Search creators</string>
+    <string name="creators_sort_recommend">Recommend</string>
+    <string name="creators_sort_new">New</string>
+    <string name="creators_sort_followers">Followers</string>
+    <string name="creators_sort_interaction">Interaction</string>
+    <string name="creators_sort_followed">Followed</string>
     <string name="creators_followers_interactions">Followers: %1$d - Interactions: %2$d</string>
     <string name="creators_characters">Characters</string>
 

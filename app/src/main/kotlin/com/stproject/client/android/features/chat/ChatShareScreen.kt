@@ -22,6 +22,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentFilterBlockedDialog
+import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.network.userMessage
 
 @Composable
 fun ChatShareScreen(
@@ -31,10 +34,12 @@ fun ChatShareScreen(
     onBackToExplore: () -> Unit,
     onOpenChat: () -> Unit,
     onShareCodeConsumed: () -> Unit,
+    contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val chatState by chatViewModel.uiState.collectAsState()
     var startRequested by remember { mutableStateOf(false) }
+    var tagBlockedOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(shareCode) {
         startRequested = false
@@ -48,6 +53,11 @@ fun ChatShareScreen(
         val memberId = uiState.resolvedMemberId
         val code = uiState.shareCode
         if (!memberId.isNullOrBlank() && !code.isNullOrBlank() && !startRequested) {
+            if (contentGate.isTagBlocked(uiState.resolvedTags)) {
+                tagBlockedOpen = true
+                viewModel.consumeResolvedMemberId()
+                return@LaunchedEffect
+            }
             startRequested = true
             chatViewModel.startNewChat(
                 memberId = memberId,
@@ -58,7 +68,7 @@ fun ChatShareScreen(
         }
     }
 
-    val errorText = uiState.error ?: if (startRequested) chatState.error else null
+    val errorText = uiState.error?.userMessage() ?: if (startRequested) chatState.error else null
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         if (errorText != null) {
@@ -111,4 +121,9 @@ fun ChatShareScreen(
             }
         }
     }
+
+    ContentFilterBlockedDialog(
+        open = tagBlockedOpen,
+        onDismiss = { tagBlockedOpen = false },
+    )
 }

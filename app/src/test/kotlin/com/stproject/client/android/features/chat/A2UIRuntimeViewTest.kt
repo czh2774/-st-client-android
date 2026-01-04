@@ -1,12 +1,12 @@
 package com.stproject.client.android.features.chat
 
-import com.google.gson.JsonParser
-import com.stproject.client.android.core.a2ui.A2UIComponent
-import com.stproject.client.android.core.a2ui.A2UIBindingResolver
-import com.stproject.client.android.core.a2ui.A2UISurfaceState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.gson.JsonParser
+import com.stproject.client.android.core.a2ui.A2UIBindingResolver
+import com.stproject.client.android.core.a2ui.A2UIComponent
+import com.stproject.client.android.core.a2ui.A2UISurfaceState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

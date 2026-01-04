@@ -29,23 +29,54 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
+import com.stproject.client.android.core.compliance.ContentFilterBlockedDialog
 import com.stproject.client.android.core.compliance.ContentGate
+import com.stproject.client.android.core.compliance.ContentGateBlockKind
 import com.stproject.client.android.core.compliance.NsfwBlockedDialog
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.core.compliance.resolveNsfwHint
 import com.stproject.client.android.domain.model.CreatorCharacter
+import com.stproject.client.android.features.chat.ModerationViewModel
+import com.stproject.client.android.features.chat.ReportDialog
 
 @Composable
 fun CreatorCharactersScreen(
     creatorId: String,
     viewModel: CreatorCharactersViewModel,
+    moderationViewModel: ModerationViewModel,
     onBack: () -> Unit,
     onStartChat: (String) -> Unit,
     onOpenDetail: (String) -> Unit,
+    onOpenBadges: (() -> Unit)?,
     contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val moderationState by moderationViewModel.uiState.collectAsState()
     var nsfwBlockedOpen by remember { mutableStateOf(false) }
+    var tagBlockedOpen by remember { mutableStateOf(false) }
+    var reportOpen by remember { mutableStateOf(false) }
+    val visibleItems = uiState.items.filterNot { contentGate.isTagBlocked(it.tags) }
+
+    fun handleGateForCharacter(character: CreatorCharacter): Boolean {
+        return when (
+            contentGate.blockKind(
+                character.isNsfw,
+                character.moderationAgeRating,
+                character.tags,
+            )
+        ) {
+            ContentGateBlockKind.TAGS_BLOCKED -> {
+                tagBlockedOpen = true
+                true
+            }
+            ContentGateBlockKind.NSFW_DISABLED -> {
+                nsfwBlockedOpen = true
+                true
+            }
+            null -> false
+            else -> true
+        }
+    }
 
     LaunchedEffect(creatorId) {
         viewModel.load(creatorId)
@@ -68,8 +99,23 @@ fun CreatorCharactersScreen(
                     text = stringResource(R.string.creator_characters_title),
                     style = MaterialTheme.typography.titleMedium,
                 )
-                if (contentGate.nsfwAllowed) {
-                    RestrictedContentNotice(onReport = null)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onOpenBadges != null) {
+                        TextButton(onClick = onOpenBadges) {
+                            Text(stringResource(R.string.creator_badges_action))
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    if (contentGate.nsfwAllowed) {
+                        RestrictedContentNotice(
+                            onReport = {
+                                if (creatorId.isNotBlank()) {
+                                    reportOpen = true
+                                    moderationViewModel.loadReasonsIfNeeded()
+                                }
+                            },
+                        )
+                    }
                 }
             }
             if (uiState.isLoading && uiState.items.isEmpty()) {
@@ -91,29 +137,30 @@ fun CreatorCharactersScreen(
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
+            if (moderationState.error != null) {
+                Text(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = moderationState.error ?: "",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(items = uiState.items, key = { it.id }) { item ->
+                items(items = visibleItems, key = { it.id }) { item ->
                     CreatorCharacterRow(
                         item = item,
                         onStartChat = { character ->
-                            if (contentGate.isRestricted(character.isNsfw, character.moderationAgeRating)) {
-                                if (contentGate.isNsfwBlocked(character.isNsfw, character.moderationAgeRating)) {
-                                    nsfwBlockedOpen = true
-                                }
-                                return@CreatorCharacterRow
-                            }
+                            if (handleGateForCharacter(character)) return@CreatorCharacterRow
                             onStartChat(character.id)
                         },
                         onOpenDetail = { character ->
-                            if (contentGate.isRestricted(character.isNsfw, character.moderationAgeRating)) {
-                                if (contentGate.isNsfwBlocked(character.isNsfw, character.moderationAgeRating)) {
-                                    nsfwBlockedOpen = true
-                                }
-                                return@CreatorCharacterRow
-                            }
+                            if (handleGateForCharacter(character)) return@CreatorCharacterRow
                             onOpenDetail(character.id)
                         },
                     )
@@ -142,9 +189,29 @@ fun CreatorCharactersScreen(
         }
     }
 
+    if (reportOpen) {
+        ReportDialog(
+            state = moderationState,
+            onDismiss = { reportOpen = false },
+            onSubmit = { reasons, detail ->
+                moderationViewModel.submitReportForUser(creatorId, reasons, detail)
+            },
+        )
+    }
+
+    LaunchedEffect(moderationState.lastReportSubmitted) {
+        if (moderationState.lastReportSubmitted) {
+            reportOpen = false
+        }
+    }
+
     NsfwBlockedDialog(
         open = nsfwBlockedOpen,
         onDismiss = { nsfwBlockedOpen = false },
+    )
+    ContentFilterBlockedDialog(
+        open = tagBlockedOpen,
+        onDismiss = { tagBlockedOpen = false },
     )
 }
 

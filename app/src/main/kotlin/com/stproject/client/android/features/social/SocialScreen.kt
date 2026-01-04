@@ -31,9 +31,9 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.domain.model.SocialUserSummary
 import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chat.ReportDialog
-import com.stproject.client.android.domain.model.SocialUserSummary
 
 @Composable
 fun SocialScreen(
@@ -62,7 +62,15 @@ fun SocialScreen(
             ) {
                 Text(text = stringResource(R.string.social_title), style = MaterialTheme.typography.titleMedium)
                 if (contentGate.nsfwAllowed) {
-                    RestrictedContentNotice(onReport = null)
+                    RestrictedContentNotice(
+                        onReport = {
+                            val targetId = uiState.items.firstOrNull()?.id
+                            if (!targetId.isNullOrBlank()) {
+                                reportTargetId = targetId
+                                moderationViewModel.loadReasonsIfNeeded()
+                            }
+                        },
+                    )
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),

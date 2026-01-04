@@ -95,6 +95,8 @@ class ChatShareViewModelTest : BaseUnitTest() {
             memberId: String?,
             isNsfwHint: Boolean?,
             ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
+            tags: List<String>?,
+            requireMetadata: Boolean,
         ): ContentAccessDecision {
             return ContentAccessDecision.Allowed
         }
@@ -111,6 +113,8 @@ class ChatShareViewModelTest : BaseUnitTest() {
             memberId: String?,
             isNsfwHint: Boolean?,
             ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
+            tags: List<String>?,
+            requireMetadata: Boolean,
         ): ContentAccessDecision {
             return ContentAccessDecision.Blocked(ContentBlockReason.NSFW_DISABLED)
         }
@@ -134,7 +138,7 @@ class ChatShareViewModelTest : BaseUnitTest() {
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
-            assertEquals("mature content disabled", state.error)
+            assertEquals("mature content disabled", state.error?.message)
             assertNull(state.resolvedMemberId)
         }
 

@@ -1,15 +1,18 @@
 package com.stproject.client.android.data.repository
 
 import com.stproject.client.android.core.network.ApiClient
+import com.stproject.client.android.core.network.CommentCharacterDto
 import com.stproject.client.android.core.network.CommentItemDto
 import com.stproject.client.android.core.network.CreateCommentRequestDto
 import com.stproject.client.android.core.network.LikeCommentRequestDto
 import com.stproject.client.android.core.network.StCommentApi
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.Comment
 import com.stproject.client.android.domain.model.CommentLikeResult
 import com.stproject.client.android.domain.model.CommentListResult
 import com.stproject.client.android.domain.model.CommentSort
 import com.stproject.client.android.domain.model.CommentUser
+import com.stproject.client.android.domain.model.ContentSummary
 import com.stproject.client.android.domain.repository.CommentRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,6 +44,7 @@ class HttpCommentRepository
                 items = items,
                 total = resp.total ?: items.size,
                 hasMore = resp.hasMore ?: false,
+                character = resp.character?.toDomain(),
             )
         }
 
@@ -123,6 +127,21 @@ class HttpCommentRepository
                 parentId = parentId?.trim()?.takeIf { it.isNotEmpty() },
                 user = user,
                 replies = replies,
+            )
+        }
+
+        private fun CommentCharacterDto.toDomain(): ContentSummary? {
+            val idValue = id?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+            val cleanedTags =
+                tags
+                    ?.mapNotNull { tag -> tag.trim().takeIf { it.isNotEmpty() } }
+                    ?: emptyList()
+            return ContentSummary(
+                characterId = idValue,
+                isNsfw = isNsfw,
+                moderationAgeRating = AgeRating.from(moderationAgeRating),
+                tags = cleanedTags,
+                visibility = visibility?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
     }

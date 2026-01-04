@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,9 +33,11 @@ import androidx.compose.ui.unit.dp
 import com.stproject.client.android.R
 import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
+import com.stproject.client.android.domain.model.CreatorSummary
 import com.stproject.client.android.features.chat.ModerationViewModel
 import com.stproject.client.android.features.chat.ReportDialog
-import com.stproject.client.android.domain.model.CreatorSummary
+
+private data class CreatorSortOption(val key: String, val labelRes: Int)
 
 @Composable
 fun CreatorsScreen(
@@ -69,13 +72,49 @@ fun CreatorsScreen(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 if (contentGate.nsfwAllowed) {
-                    RestrictedContentNotice(onReport = null)
+                    RestrictedContentNotice(
+                        onReport = {
+                            val targetId = uiState.items.firstOrNull()?.id
+                            if (!targetId.isNullOrBlank()) {
+                                reportTargetId = targetId
+                                moderationViewModel.loadReasonsIfNeeded()
+                            }
+                        },
+                    )
                 }
                 Button(onClick = onOpenAssistant) {
                     Text(stringResource(R.string.creators_assistant))
                 }
                 Button(onClick = onOpenCreateRole) {
                     Text(stringResource(R.string.creators_create_role))
+                }
+                val sortOptions =
+                    listOf(
+                        CreatorSortOption("recommend", R.string.creators_sort_recommend),
+                        CreatorSortOption("new", R.string.creators_sort_new),
+                        CreatorSortOption("followers", R.string.creators_sort_followers),
+                        CreatorSortOption("interaction", R.string.creators_sort_interaction),
+                        CreatorSortOption("followed", R.string.creators_sort_followed),
+                    )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(items = sortOptions, key = { it.key }) { option ->
+                        val selected = option.key == uiState.sortBy
+                        if (selected) {
+                            Button(
+                                onClick = { viewModel.setSortBy(option.key) },
+                                enabled = !uiState.isLoading,
+                            ) {
+                                Text(stringResource(option.labelRes))
+                            }
+                        } else {
+                            TextButton(
+                                onClick = { viewModel.setSortBy(option.key) },
+                                enabled = !uiState.isLoading,
+                            ) {
+                                Text(stringResource(option.labelRes))
+                            }
+                        }
+                    }
                 }
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),

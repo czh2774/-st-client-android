@@ -12,8 +12,8 @@ import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
 import com.stproject.client.android.core.preferences.UserPreferencesStore
 import com.stproject.client.android.core.session.ChatSessionStore
-import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.A2UIAction
+import com.stproject.client.android.domain.model.AgeRating
 import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatRole
 import com.stproject.client.android.domain.model.ShareCodeInfo
@@ -45,31 +45,52 @@ class ChatViewModel
         private val userPreferencesStore: UserPreferencesStore,
         private val resolveContentAccess: ResolveContentAccessUseCase,
     ) : ViewModel() {
-        private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
-        private val variablesType = object : TypeToken<Map<String, Any>>() {}.type
+        private val gson: Gson = GsonBuilder().serializeNulls().setPrettyPrinting().create()
+        private val variablesType = object : TypeToken<Map<String, Any?>>() {}.type
         private val input = MutableStateFlow("")
         private val isSending = MutableStateFlow(false)
         private val isActionRunning = MutableStateFlow(false)
         private val shareInfo = MutableStateFlow<ShareCodeInfo?>(null)
         private val activeCharacterIsNsfw = MutableStateFlow<Boolean?>(null)
         private val activeCharacterAgeRating = MutableStateFlow<AgeRating?>(null)
+        private val activeCharacterTags = MutableStateFlow<List<String>>(emptyList())
         private val accessError = MutableStateFlow<String?>(null)
         private val error = MutableStateFlow<String?>(null)
         private val variablesState = MutableStateFlow(ChatVariablesUiState())
 
+        private data class ChatUiMeta(
+            val isNsfw: Boolean?,
+            val ageRating: AgeRating?,
+            val tags: List<String>,
+            val accessError: String?,
+            val error: String?,
+        )
+
         val uiState: StateFlow<ChatUiState> =
             combine(
                 baseStateFlow(),
-                activeCharacterIsNsfw,
-                activeCharacterAgeRating,
-                accessError,
-                error,
-            ) { state, isNsfw, ageRating, accessErrorText, errorText ->
+                combine(
+                    activeCharacterIsNsfw,
+                    activeCharacterAgeRating,
+                    activeCharacterTags,
+                    accessError,
+                    error,
+                ) { isNsfw, ageRating, tags, accessErrorText, errorText ->
+                    ChatUiMeta(
+                        isNsfw = isNsfw,
+                        ageRating = ageRating,
+                        tags = tags,
+                        accessError = accessErrorText,
+                        error = errorText,
+                    )
+                },
+            ) { state, meta ->
                 state.copy(
-                    activeCharacterIsNsfw = isNsfw,
-                    activeCharacterAgeRating = ageRating,
-                    accessError = accessErrorText,
-                    error = errorText,
+                    activeCharacterIsNsfw = meta.isNsfw,
+                    activeCharacterAgeRating = meta.ageRating,
+                    activeCharacterTags = meta.tags,
+                    accessError = meta.accessError,
+                    error = meta.error,
                 )
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUiState())
 
@@ -158,6 +179,7 @@ class ChatViewModel
                         memberId,
                         activeCharacterIsNsfw.value,
                         ageRatingHint = activeCharacterAgeRating.value,
+                        tags = activeCharacterTags.value,
                     )
                 if (access is ContentAccessDecision.Blocked) {
                     handleAccessBlocked(access)
@@ -177,6 +199,7 @@ class ChatViewModel
         ) {
             activeCharacterIsNsfw.value = null
             activeCharacterAgeRating.value = null
+            activeCharacterTags.value = emptyList()
             accessError.value = null
             viewModelScope.launch {
                 try {
@@ -205,6 +228,7 @@ class ChatViewModel
         ) {
             activeCharacterIsNsfw.value = null
             activeCharacterAgeRating.value = null
+            activeCharacterTags.value = emptyList()
             accessError.value = null
             viewModelScope.launch {
                 try {
@@ -367,7 +391,7 @@ class ChatViewModel
                                         characterId = null,
                                         character =
                                             it.character.copy(
-                                                text = gson.toJson(emptyMap<String, Any>()),
+                                                text = gson.toJson(emptyMap<String, Any?>()),
                                                 isLoading = false,
                                                 isDirty = false,
                                                 error = null,
@@ -467,7 +491,7 @@ class ChatViewModel
                 if (raw.isEmpty()) {
                     emptyMap()
                 } else {
-                    runCatching { gson.fromJson<Map<String, Any>>(raw, variablesType) }.getOrNull()
+                    runCatching { gson.fromJson<Map<String, Any?>>(raw, variablesType) }.getOrNull()
                 }
             if (parsed == null) {
                 updateEditorState(scope) { it.copy(error = "invalid json", isSaving = false) }
@@ -629,8 +653,8 @@ class ChatViewModel
             return lastAssistant ?: messages.last()
         }
 
-        private fun readMessageVariables(message: ChatMessage): Map<String, Any> {
-            val metadata = message.metadata ?: emptyMap()
+        private fun readMessageVariables(message: ChatMessage): Map<String, Any?> {
+            val metadata = message.metadata ?: emptyMap<String, Any?>()
             val swipesData = metadata["swipes_data"] as? List<*>
             if (!swipesData.isNullOrEmpty()) {
                 val idx =
@@ -643,8 +667,8 @@ class ChatViewModel
 
         private fun buildSwipesData(
             message: ChatMessage,
-            nextVars: Map<String, Any>,
-        ): List<Map<String, Any>> {
+            nextVars: Map<String, Any?>,
+        ): List<Map<String, Any?>> {
             val swipeCount = message.swipes.size.takeIf { it > 0 } ?: 1
             val swipeId = (message.swipeId ?: 0).coerceIn(0, swipeCount - 1)
             val existing =
@@ -659,106 +683,6 @@ class ChatViewModel
             }
             swipes[swipeId] = nextVars
             return swipes
-        }
-
-        private fun extractTavernHelperVariables(wrapper: Map<String, Any>): Map<String, Any> {
-            val data = asStringKeyMap(wrapper["data"])
-            val extensions = asStringKeyMap(data["extensions"])
-            val tavernHelper = parseTavernHelperSettings(extensions["tavern_helper"]) ?: return emptyMap()
-            val vars =
-                tavernHelper["variables"]
-                    ?: tavernHelper["character_variables"]
-                    ?: tavernHelper["characterScriptVariables"]
-            return asStringKeyMap(vars)
-        }
-
-        private fun updateTavernHelperWrapper(
-            wrapper: Map<String, Any>,
-            nextVars: Map<String, Any>,
-        ): Map<String, Any> {
-            val data = asMutableStringKeyMap(wrapper["data"])
-            val extensions = asMutableStringKeyMap(data["extensions"])
-            val next = updateTavernHelperVariables(extensions["tavern_helper"], nextVars)
-            extensions["tavern_helper"] = next
-            data["extensions"] = extensions
-            return wrapper.toMutableMap().apply { this["data"] = data }
-        }
-
-        private fun updateTavernHelperVariables(
-            raw: Any?,
-            nextVars: Map<String, Any>,
-        ): Any {
-            if (raw is List<*>) {
-                var updated = false
-                val next =
-                    raw.map { entry ->
-                        if (entry is List<*> && entry.size >= 2) {
-                            val key = entry[0] as? String
-                            val trimmed = key?.trim().orEmpty()
-                            if (!updated &&
-                                (trimmed == "variables" ||
-                                    trimmed == "character_variables" ||
-                                    trimmed == "characterScriptVariables")
-                            ) {
-                                updated = true
-                                listOf(entry[0], nextVars)
-                            } else {
-                                entry
-                            }
-                        } else {
-                            entry
-                        }
-                    }.toMutableList()
-                if (!updated) {
-                    next.add(listOf("variables", nextVars))
-                }
-                return next
-            }
-            val base = asMutableStringKeyMap(raw)
-            when {
-                base.containsKey("variables") -> base["variables"] = nextVars
-                base.containsKey("character_variables") -> base["character_variables"] = nextVars
-                base.containsKey("characterScriptVariables") -> base["characterScriptVariables"] = nextVars
-                else -> base["variables"] = nextVars
-            }
-            return base
-        }
-
-        private fun parseTavernHelperSettings(value: Any?): Map<String, Any>? {
-            if (value is Map<*, *>) return asStringKeyMap(value)
-            if (value !is List<*>) return null
-            val out = mutableMapOf<String, Any>()
-            for (entry in value) {
-                if (entry !is List<*> || entry.size < 2) continue
-                val key = entry[0] as? String ?: continue
-                val trimmed = key.trim()
-                if (trimmed.isEmpty()) continue
-                val v = entry[1] ?: continue
-                out[trimmed] = v
-            }
-            return out.takeIf { it.isNotEmpty() }
-        }
-
-        private fun asStringKeyMap(value: Any?): Map<String, Any> {
-            if (value !is Map<*, *>) return emptyMap()
-            val out = mutableMapOf<String, Any>()
-            for ((key, v) in value) {
-                if (key is String && v != null) {
-                    out[key] = v
-                }
-            }
-            return out
-        }
-
-        private fun asMutableStringKeyMap(value: Any?): MutableMap<String, Any> {
-            val out = mutableMapOf<String, Any>()
-            if (value !is Map<*, *>) return out
-            for ((key, v) in value) {
-                if (key is String && v != null) {
-                    out[key] = v
-                }
-            }
-            return out
         }
 
         private fun handleA2UISend(action: A2UIAction) {
@@ -870,6 +794,7 @@ class ChatViewModel
                     memberId.takeIf { it.isNotEmpty() },
                     activeCharacterIsNsfw.value,
                     ageRatingHint = activeCharacterAgeRating.value,
+                    tags = activeCharacterTags.value,
                 )
             if (access is ContentAccessDecision.Blocked) {
                 handleAccessBlocked(access)
@@ -895,16 +820,19 @@ class ChatViewModel
             if (clean == null) {
                 activeCharacterIsNsfw.value = null
                 activeCharacterAgeRating.value = null
+                activeCharacterTags.value = emptyList()
                 return
             }
             try {
                 val detail = characterRepository.getCharacterDetail(clean)
                 activeCharacterIsNsfw.value = detail.isNsfw
                 activeCharacterAgeRating.value = detail.moderationAgeRating
+                activeCharacterTags.value = detail.tags
             } catch (e: Exception) {
                 e.rethrowIfCancellation()
                 activeCharacterIsNsfw.value = null
                 activeCharacterAgeRating.value = null
+                activeCharacterTags.value = emptyList()
             }
         }
     }

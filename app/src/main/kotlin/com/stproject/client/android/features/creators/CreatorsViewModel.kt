@@ -6,6 +6,7 @@ import com.stproject.client.android.core.common.rethrowIfCancellation
 import com.stproject.client.android.core.compliance.ContentAccessDecision
 import com.stproject.client.android.core.compliance.userMessage
 import com.stproject.client.android.core.network.ApiException
+import com.stproject.client.android.domain.model.CreatorSummary
 import com.stproject.client.android.domain.repository.CreatorRepository
 import com.stproject.client.android.domain.repository.SocialRepository
 import com.stproject.client.android.domain.usecase.FollowUserUseCase
@@ -30,12 +31,20 @@ class CreatorsViewModel
         private val _uiState = MutableStateFlow(CreatorsUiState())
         val uiState: StateFlow<CreatorsUiState> = _uiState
 
-        fun load() {
-            if (_uiState.value.isLoading) return
-            _uiState.update { it.copy(isLoading = true, error = null) }
+        fun load(force: Boolean = false) {
+            if (_uiState.value.isLoading && !force) return
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    error = null,
+                    items = if (force) emptyList() else it.items,
+                    nextCursor = if (force) null else it.nextCursor,
+                    hasMore = if (force) false else it.hasMore,
+                )
+            }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -48,17 +57,19 @@ class CreatorsViewModel
                         }
                         return@launch
                     }
+                    val state = _uiState.value
                     val result =
                         creatorRepository.listCreators(
                             limit = 20,
                             cursor = null,
-                            sortBy = "recommend",
-                            searchKeyword = _uiState.value.searchKeyword.trim().takeIf { it.isNotEmpty() },
+                            sortBy = state.sortBy,
+                            searchKeyword = state.searchKeyword.trim().takeIf { it.isNotEmpty() },
                         )
+                    val filtered = filterByPreviewAccess(result.items)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            items = result.items,
+                            items = filtered,
                             hasMore = result.hasMore,
                             nextCursor = result.nextCursor,
                         )
@@ -78,7 +89,7 @@ class CreatorsViewModel
             _uiState.update { it.copy(isLoading = true, error = null) }
             viewModelScope.launch {
                 try {
-                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = null)
+                    val access = resolveContentAccess.execute(memberId = null, isNsfwHint = false)
                     if (access is ContentAccessDecision.Blocked) {
                         _uiState.update {
                             it.copy(
@@ -95,13 +106,14 @@ class CreatorsViewModel
                         creatorRepository.listCreators(
                             limit = 20,
                             cursor = state.nextCursor,
-                            sortBy = "recommend",
+                            sortBy = state.sortBy,
                             searchKeyword = state.searchKeyword.trim().takeIf { it.isNotEmpty() },
                         )
+                    val filtered = filterByPreviewAccess(result.items)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            items = it.items + result.items,
+                            items = it.items + filtered,
                             hasMore = result.hasMore,
                             nextCursor = result.nextCursor,
                         )
@@ -120,7 +132,15 @@ class CreatorsViewModel
         }
 
         fun submitSearch() {
-            load()
+            load(force = true)
+        }
+
+        fun setSortBy(sortBy: String) {
+            val normalized = sortBy.trim()
+            if (normalized.isEmpty()) return
+            if (_uiState.value.sortBy == normalized) return
+            _uiState.update { it.copy(sortBy = normalized) }
+            load(force = true)
         }
 
         fun followCreator(
@@ -158,6 +178,25 @@ class CreatorsViewModel
                 } catch (e: Exception) {
                     e.rethrowIfCancellation()
                     _uiState.update { it.copy(error = "unexpected error") }
+                }
+            }
+        }
+
+        private suspend fun filterByPreviewAccess(
+            items: List<CreatorSummary>,
+        ): List<CreatorSummary> {
+            if (items.isEmpty()) return items
+            return items.filter { creator ->
+                val previews = creator.previewCharacters
+                if (previews.isEmpty()) return@filter true
+                previews.any { preview ->
+                    resolveContentAccess.execute(
+                        memberId = preview.id,
+                        isNsfwHint = preview.isNsfw,
+                        ageRatingHint = preview.moderationAgeRating,
+                        tags = preview.tags,
+                        requireMetadata = true,
+                    ) is ContentAccessDecision.Allowed
                 }
             }
         }

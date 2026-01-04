@@ -22,6 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -31,15 +34,20 @@ import com.stproject.client.android.core.compliance.ContentGate
 import com.stproject.client.android.core.compliance.RestrictedContentNotice
 import com.stproject.client.android.domain.model.CreatorAssistantDraft
 import com.stproject.client.android.domain.model.CreatorAssistantMessage
+import com.stproject.client.android.features.chat.ModerationViewModel
+import com.stproject.client.android.features.chat.ReportDialog
 
 @Composable
 fun CreatorAssistantChatScreen(
     sessionId: String,
     viewModel: CreatorAssistantChatViewModel,
+    moderationViewModel: ModerationViewModel,
     onBack: () -> Unit,
     contentGate: ContentGate,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val moderationState by moderationViewModel.uiState.collectAsState()
+    var reportOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(sessionId) {
         viewModel.loadSession(sessionId)
@@ -63,7 +71,12 @@ fun CreatorAssistantChatScreen(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 if (contentGate.nsfwAllowed) {
-                    RestrictedContentNotice(onReport = null)
+                    RestrictedContentNotice(
+                        onReport = {
+                            reportOpen = true
+                            moderationViewModel.loadReasonsIfNeeded()
+                        },
+                    )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(
@@ -115,6 +128,17 @@ fun CreatorAssistantChatScreen(
                             .background(MaterialTheme.colorScheme.errorContainer)
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                     text = uiState.error ?: "",
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            if (moderationState.error != null) {
+                Text(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    text = moderationState.error ?: "",
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
@@ -191,6 +215,30 @@ fun CreatorAssistantChatScreen(
             }
         }
     }
+
+    if (reportOpen) {
+        ReportDialog(
+            state = moderationState,
+            onDismiss = { reportOpen = false },
+            onSubmit = { reasons, detail ->
+                val targetId =
+                    uiState.publishResult?.characterId
+                        ?: uiState.draftResult?.draft?.parentCharacterId
+                        ?: uiState.currentDraft?.parentCharacterId
+                if (!targetId.isNullOrBlank()) {
+                    moderationViewModel.submitReportForCharacter(targetId, reasons, detail)
+                } else {
+                    moderationViewModel.submitReport(reasons, detail)
+                }
+            },
+        )
+    }
+
+    LaunchedEffect(moderationState.lastReportSubmitted) {
+        if (moderationState.lastReportSubmitted) {
+            reportOpen = false
+        }
+    }
 }
 
 @Composable
@@ -236,7 +284,8 @@ private fun DraftPreview(
         if (draft.tags.isNotEmpty()) {
             Text(text = stringResource(R.string.assistant_draft_tags, draft.tags.joinToString()))
         }
-        Text(text = stringResource(R.string.assistant_draft_nsfw, draft.isNsfw.toString()))
+        val nsfwLabel = draft.isNsfw?.toString() ?: "unknown"
+        Text(text = stringResource(R.string.assistant_draft_nsfw, nsfwLabel))
         if (draftMeta != null) {
             Text(text = stringResource(R.string.assistant_draft_confidence, draftMeta.confidence))
             if (draftMeta.missingFields.isNotEmpty()) {

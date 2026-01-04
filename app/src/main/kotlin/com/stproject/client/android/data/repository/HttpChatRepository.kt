@@ -1,14 +1,17 @@
 package com.stproject.client.android.data.repository
 
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import com.stproject.client.android.BuildConfig
 import com.stproject.client.android.core.a2ui.A2UIClientCapabilitiesProvider
 import com.stproject.client.android.core.a2ui.A2UIMessage
+import com.stproject.client.android.core.a2ui.A2UIProtocolValidator
 import com.stproject.client.android.core.a2ui.A2UIRuntimeReducer
 import com.stproject.client.android.core.a2ui.A2UIRuntimeState
 import com.stproject.client.android.core.common.rethrowIfCancellation
+import com.stproject.client.android.core.network.A2UIErrorDto
 import com.stproject.client.android.core.network.A2UIEventRequestDto
 import com.stproject.client.android.core.network.A2UIMessageMetadataDto
 import com.stproject.client.android.core.network.A2UIUserActionDto
@@ -27,8 +30,8 @@ import com.stproject.client.android.core.network.DialogVariablesRequestDto
 import com.stproject.client.android.core.network.StApi
 import com.stproject.client.android.core.network.StBaseUrlProvider
 import com.stproject.client.android.core.network.UpdateChatSessionRequestDto
-import com.stproject.client.android.core.session.ChatSessionStore
 import com.stproject.client.android.core.preferences.UserPreferencesStore
+import com.stproject.client.android.core.session.ChatSessionStore
 import com.stproject.client.android.data.local.ChatMessageDao
 import com.stproject.client.android.data.local.ChatMessageEntity
 import com.stproject.client.android.data.local.ChatSessionDao
@@ -39,9 +42,11 @@ import com.stproject.client.android.domain.model.ChatMessage
 import com.stproject.client.android.domain.model.ChatRole
 import com.stproject.client.android.domain.model.ChatSessionSummary
 import com.stproject.client.android.domain.repository.ChatRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
@@ -50,6 +55,8 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -63,6 +70,8 @@ import timber.log.Timber
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.min
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -84,10 +93,10 @@ class HttpChatRepository
             private const val MAX_CACHED_SESSIONS = 100
         }
 
-        private val gson = Gson()
+        private val gson: Gson = GsonBuilder().serializeNulls().create()
         private val swipesType = object : TypeToken<List<String>>() {}.type
-        private val metadataType = object : TypeToken<Map<String, Any>>() {}.type
-        private var latestSessionVariables: Map<String, Any> = emptyMap()
+        private val metadataType = object : TypeToken<Map<String, Any?>>() {}.type
+        private var latestSessionVariables: Map<String, Any?> = emptyMap()
         private val sseClient =
             okHttpClient.newBuilder()
                 .readTimeout(0, TimeUnit.SECONDS)
@@ -200,10 +209,11 @@ class HttpChatRepository
         }
 
         override suspend fun sendA2UIAction(action: A2UIAction): A2UIActionResult {
-            val name = action.name.trim()
-            if (name.isEmpty()) {
-                return A2UIActionResult(accepted = false, reason = "missing_action")
+            val validation = A2UIProtocolValidator.validateAction(action)
+            if (!validation.isValid) {
+                return A2UIActionResult(accepted = false, reason = validation.reason)
             }
+            val name = action.name.trim()
             val context =
                 action.context.entries
                     .mapNotNull { (key, value) -> value?.let { key to it } }
@@ -291,6 +301,7 @@ class HttpChatRepository
                             displayName = name,
                             updatedAt = dto.updatedAt ?: dto.lastMessageAt,
                             primaryMemberIsNsfw = null,
+                            primaryMemberTags = emptyList(),
                         )
                     }
                 withContext(Dispatchers.IO) {
@@ -459,7 +470,7 @@ class HttpChatRepository
             updateSwipeState(serverId, resp.content, resp.swipes, resp.swipeId, resp.metadata)
         }
 
-        override suspend fun loadSessionVariables(): Map<String, Any> {
+        override suspend fun loadSessionVariables(): Map<String, Any?> {
             val sessionId = sessionStore.getSessionId()?.trim().orEmpty()
             if (sessionId.isEmpty()) {
                 throw ApiException(message = "missing session", userMessage = "missing session")
@@ -469,7 +480,7 @@ class HttpChatRepository
             return parseSessionVariables(resp).also { latestSessionVariables = it }
         }
 
-        override suspend fun updateSessionVariables(variables: Map<String, Any>) {
+        override suspend fun updateSessionVariables(variables: Map<String, Any?>) {
             val sessionId = sessionStore.getSessionId()?.trim().orEmpty()
             if (sessionId.isEmpty()) {
                 throw ApiException(message = "missing session", userMessage = "missing session")
@@ -485,7 +496,7 @@ class HttpChatRepository
 
         override suspend fun updateMessageVariables(
             messageId: String,
-            swipesData: List<Map<String, Any>>,
+            swipesData: List<Map<String, Any?>>,
         ) {
             val serverId = resolveServerMessageId(messageId)
             apiClient.call {
@@ -793,9 +804,22 @@ class HttpChatRepository
                 awaitClose { eventSource.cancel() }
             }
 
-        private fun streamA2uiRuntime(sessionId: String): Flow<A2UIRuntimeState?> =
+        private fun streamA2uiRuntime(sessionId: String): Flow<A2UIRuntimeState?> {
+            val stateRef = AtomicReference(A2UIRuntimeState())
+            return streamA2uiRuntimeOnce(sessionId, stateRef)
+                .retryWhen { cause, attempt ->
+                    if (!shouldRetryA2uiStream(cause)) return@retryWhen false
+                    delay(a2uiRetryDelayMs(attempt))
+                    true
+                }
+        }
+
+        private fun streamA2uiRuntimeOnce(
+            sessionId: String,
+            stateRef: AtomicReference<A2UIRuntimeState>,
+        ): Flow<A2UIRuntimeState?> =
             callbackFlow {
-                var currentState = A2UIRuntimeState()
+                var currentState = stateRef.get()
                 val request =
                     Request.Builder()
                         .url("${baseUrlProvider.baseUrl()}a2ui/stream?sessionId=$sessionId")
@@ -816,8 +840,34 @@ class HttpChatRepository
                                 eventSource.cancel()
                                 return
                             }
-                            val msg = runCatching { gson.fromJson(data, A2UIMessage::class.java) }.getOrNull() ?: return
+                            val msg =
+                                runCatching { gson.fromJson(data, A2UIMessage::class.java) }
+                                    .getOrNull()
+                            if (msg == null) {
+                                launch(Dispatchers.IO) {
+                                    reportA2UIError(
+                                        type = "parse_error",
+                                        message = "invalid A2UI JSON",
+                                        surfaceId = null,
+                                        raw = data,
+                                    )
+                                }
+                                return
+                            }
+                            val validation = A2UIProtocolValidator.validateMessage(msg)
+                            if (!validation.isValid) {
+                                launch(Dispatchers.IO) {
+                                    reportA2UIError(
+                                        type = "invalid_message",
+                                        message = validation.reason,
+                                        surfaceId = extractSurfaceId(msg),
+                                        raw = data,
+                                    )
+                                }
+                                return
+                            }
                             currentState = A2UIRuntimeReducer.reduce(currentState, msg)
+                            stateRef.set(currentState)
                             trySend(currentState.takeUnless { it.isEmpty })
                         }
 
@@ -826,13 +876,67 @@ class HttpChatRepository
                             t: Throwable?,
                             response: Response?,
                         ) {
-                            close(t ?: ApiException(message = "a2ui stream failed"))
+                            val status = response?.code
+                            val exception =
+                                when {
+                                    t is ApiException -> t
+                                    status != null -> ApiException(httpStatus = status, message = "a2ui stream failed ($status)")
+                                    t != null -> ApiException(message = "a2ui stream failed: ${t.message ?: "unknown"}")
+                                    else -> ApiException(message = "a2ui stream failed")
+                                }
+                            close(exception)
                         }
                     }
                 val factory = EventSources.createFactory(sseClient)
                 val eventSource = factory.newEventSource(request, listener)
                 awaitClose { eventSource.cancel() }
             }
+
+        private fun shouldRetryA2uiStream(cause: Throwable): Boolean {
+            if (cause is CancellationException) return false
+            val apiException = cause as? ApiException ?: return true
+            val status = apiException.httpStatus ?: return true
+            return status < 400 || status >= 500 || status == 408
+        }
+
+        private fun a2uiRetryDelayMs(attempt: Long): Long {
+            val capped = attempt.coerceAtMost(4).toInt()
+            val base = 1_000L * (1L shl capped)
+            return min(base, 15_000L)
+        }
+
+        private fun extractSurfaceId(message: A2UIMessage): String? {
+            return message.beginRendering?.surfaceId
+                ?: message.surfaceUpdate?.surfaceId
+                ?: message.dataModelUpdate?.surfaceId
+                ?: message.deleteSurface?.surfaceId
+        }
+
+        private suspend fun reportA2UIError(
+            type: String,
+            message: String,
+            surfaceId: String?,
+            raw: String?,
+        ) {
+            val details =
+                raw?.take(512)?.let { mapOf("raw" to it) }
+            val request =
+                A2UIEventRequestDto(
+                    error =
+                        A2UIErrorDto(
+                            type = type,
+                            message = message,
+                            surfaceId = surfaceId,
+                            details = details,
+                        ),
+                    metadata =
+                        A2UIMessageMetadataDto(
+                            a2uiClientCapabilities = A2UIClientCapabilitiesProvider.capabilities,
+                        ),
+                )
+            runCatching { apiClient.call { api.sendA2UIEvent(request) } }
+                .onFailure { Timber.w(it, "A2UI error event failed") }
+        }
 
         private fun parseSseData(data: String): StreamEvent? {
             if (data == "[DONE]") return StreamEvent.Done
@@ -1023,7 +1127,7 @@ class HttpChatRepository
             return gson.toJson(swipes)
         }
 
-        private fun encodeMetadata(metadata: Map<String, Any>?): String? {
+        private fun encodeMetadata(metadata: Map<String, Any?>?): String? {
             if (metadata.isNullOrEmpty()) return null
             return gson.toJson(metadata)
         }
@@ -1035,10 +1139,10 @@ class HttpChatRepository
             }.getOrElse { emptyList() }
         }
 
-        private fun decodeMetadata(raw: String?): Map<String, Any>? {
+        private fun decodeMetadata(raw: String?): Map<String, Any?>? {
             if (raw.isNullOrBlank()) return null
             return runCatching {
-                gson.fromJson<Map<String, Any>>(raw, metadataType)
+                gson.fromJson<Map<String, Any?>>(raw, metadataType)
             }.getOrNull()
         }
 
@@ -1051,17 +1155,17 @@ class HttpChatRepository
             }
         }
 
-        private fun parseSessionVariables(detail: ChatSessionDetailDto): Map<String, Any> {
+        private fun parseSessionVariables(detail: ChatSessionDetailDto): Map<String, Any?> {
             val metadata = detail.metadata ?: return emptyMap()
             val raw = metadata["xb_vars"] ?: metadata["xbVars"] ?: metadata["variables"]
             return toStringMap(raw)
         }
 
-        private fun toStringMap(raw: Any?): Map<String, Any> {
+        private fun toStringMap(raw: Any?): Map<String, Any?> {
             if (raw !is Map<*, *>) return emptyMap()
-            val out = mutableMapOf<String, Any>()
+            val out = mutableMapOf<String, Any?>()
             for ((key, value) in raw) {
-                if (key is String && value != null) {
+                if (key is String) {
                     out[key] = value
                 }
             }
@@ -1073,7 +1177,7 @@ class HttpChatRepository
             content: String,
             swipes: List<String>?,
             swipeId: Int?,
-            metadata: Map<String, Any>?,
+            metadata: Map<String, Any?>?,
         ) {
             withContext(Dispatchers.IO) {
                 val existing = messageDao.getByServerId(serverMessageId)
@@ -1100,7 +1204,7 @@ class HttpChatRepository
 
         private suspend fun updateMessageMetadata(
             serverMessageId: String,
-            patch: Map<String, Any>,
+            patch: Map<String, Any?>,
         ) {
             withContext(Dispatchers.IO) {
                 val existing = messageDao.getByServerId(serverMessageId) ?: return@withContext
@@ -1185,6 +1289,7 @@ class HttpChatRepository
                 displayName = displayName,
                 updatedAt = updatedAt,
                 primaryMemberIsNsfw = null,
+                primaryMemberTags = emptyList(),
             )
         }
 

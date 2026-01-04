@@ -3,6 +3,7 @@ package com.stproject.client.android.core.a2ui
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import timber.log.Timber
+import java.util.ArrayDeque
 
 data class A2UIComponent(
     val id: String,
@@ -30,13 +31,36 @@ data class A2UIRuntimeState(
 }
 
 object A2UIRuntimeReducer {
+    private data class BoundDefault(
+        val path: String,
+        val value: Any,
+    )
+
+    private data class TemplateBinding(
+        val componentId: String,
+        val dataBinding: String,
+    )
+
+    private data class ComponentNode(
+        val explicitChildren: List<String>,
+        val template: TemplateBinding?,
+    )
+
+    private data class ComponentDefaults(
+        val absolute: List<BoundDefault>,
+        val relative: List<BoundDefault>,
+    ) {
+        val isEmpty: Boolean
+            get() = absolute.isEmpty() && relative.isEmpty()
+    }
+
     fun reduce(
         state: A2UIRuntimeState,
         message: A2UIMessage,
     ): A2UIRuntimeState {
-        val actionCount = countActions(message)
-        if (actionCount != 1) {
-            Timber.w("A2UI message must contain exactly one action, got %d", actionCount)
+        val validation = A2UIProtocolValidator.validateMessage(message)
+        if (!validation.isValid) {
+            Timber.w("A2UI message rejected: %s", validation.reason)
             return state
         }
         val surfaces = state.surfaces.toMutableMap()
@@ -48,12 +72,13 @@ object A2UIRuntimeReducer {
         message.surfaceUpdate?.let { update ->
             val surfaceId = update.surfaceId?.trim().orEmpty()
             if (surfaceId.isNotEmpty()) {
-                val next =
+                var next =
                     updateSurfaceComponents(
                         current = surfaces[surfaceId],
                         surfaceId = surfaceId,
                         components = update.components.orEmpty(),
                     )
+                next = applyBoundDefaults(next)
                 surfaces[surfaceId] = next
             }
         }
@@ -64,12 +89,14 @@ object A2UIRuntimeReducer {
                 val current = surfaces[surfaceId] ?: A2UISurfaceState(surfaceId = surfaceId)
                 logCatalogIdIfNeeded(current, begin)
                 logStylesIfNeeded(current, begin)
-                surfaces[surfaceId] =
+                var next =
                     current.copy(
                         rootId = begin.root?.trim()?.takeIf { it.isNotEmpty() },
                         catalogId = begin.catalogId?.trim()?.takeIf { it.isNotEmpty() },
                         styles = begin.styles?.takeIf { it.entrySet().isNotEmpty() },
                     )
+                next = applyBoundDefaults(next)
+                surfaces[surfaceId] = next
             }
         }
 
@@ -77,7 +104,9 @@ object A2UIRuntimeReducer {
             val surfaceId = update.surfaceId?.trim().orEmpty()
             if (surfaceId.isNotEmpty()) {
                 val current = surfaces[surfaceId] ?: A2UISurfaceState(surfaceId = surfaceId)
-                surfaces[surfaceId] = applyDataModelUpdate(current, update)
+                var next = applyDataModelUpdate(current, update)
+                next = applyBoundDefaults(next)
+                surfaces[surfaceId] = next
             }
         }
 
@@ -107,6 +136,10 @@ object A2UIRuntimeReducer {
             }
             val entry = entries.first()
             val type = entry.key
+            if (!A2UICatalog.supportsComponent(type)) {
+                Timber.w("A2UI unsupported component type=%s id=%s", type, componentId)
+                continue
+            }
             val props = entry.value.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
             nextComponents[componentId] =
                 A2UIComponent(
@@ -117,6 +150,366 @@ object A2UIRuntimeReducer {
                 )
         }
         return existing.copy(components = nextComponents)
+    }
+
+    private fun applyBoundDefaults(surface: A2UISurfaceState): A2UISurfaceState {
+        if (surface.components.isEmpty()) return surface
+        val defaultsByComponent = mutableMapOf<String, ComponentDefaults>()
+        val graph = buildComponentGraph(surface.components)
+        val rootReachable = collectExplicitReachable(surface.rootId, graph)
+        val templateBindings = collectTemplateBindings(surface.rootId, graph)
+
+        for ((id, component) in surface.components) {
+            val defaults = collectBoundDefaults(component.props)
+            if (!defaults.isEmpty) {
+                defaultsByComponent[id] = defaults
+            }
+        }
+
+        if (defaultsByComponent.isEmpty()) return surface
+        val root = surface.dataModel.toMutableMap()
+        var mutated = false
+
+        for (defaults in defaultsByComponent.values) {
+            if (applyDefaultsToRoot(root, defaults.absolute)) {
+                mutated = true
+            }
+        }
+
+        for (id in rootReachable) {
+            val defaults = defaultsByComponent[id] ?: continue
+            if (defaults.relative.isEmpty()) continue
+            if (applyDefaultsToRoot(root, defaults.relative)) {
+                mutated = true
+            }
+        }
+
+        for (binding in templateBindings) {
+            val templateReachable = collectExplicitReachable(binding.componentId, graph)
+            if (templateReachable.isEmpty()) continue
+            val templateDefaults =
+                templateReachable.flatMap { id ->
+                    defaultsByComponent[id]?.relative.orEmpty()
+                }
+            if (templateDefaults.isEmpty()) continue
+            if (applyTemplateDefaults(root, binding.dataBinding, templateDefaults)) {
+                mutated = true
+            }
+        }
+
+        return if (mutated) surface.copy(dataModel = root) else surface
+    }
+
+    private fun collectBoundDefaults(props: JsonObject): ComponentDefaults {
+        val absolute = mutableListOf<BoundDefault>()
+        val relative = mutableListOf<BoundDefault>()
+
+        fun visit(element: JsonElement?) {
+            if (element == null || element.isJsonNull) return
+            if (element.isJsonArray) {
+                element.asJsonArray.forEach { visit(it) }
+                return
+            }
+            if (!element.isJsonObject) return
+            val obj = element.asJsonObject
+            val path = obj.readString("path")?.trim().orEmpty()
+            if (path.isNotEmpty()) {
+                val literal = extractLiteralValue(obj)
+                if (literal != null) {
+                    val target = if (path.startsWith("/")) absolute else relative
+                    target.add(BoundDefault(path = path, value = literal))
+                    return
+                }
+            }
+            for ((_, value) in obj.entrySet()) {
+                visit(value)
+            }
+        }
+
+        visit(props)
+        return ComponentDefaults(absolute = absolute, relative = relative)
+    }
+
+    private fun extractTemplateBinding(props: JsonObject): TemplateBinding? {
+        val children = props.getAsJsonObject("children") ?: return null
+        val template = children.getAsJsonObject("template") ?: return null
+        val dataBinding = template.readString("dataBinding")?.trim().orEmpty()
+        val componentId = template.readString("componentId")?.trim().orEmpty()
+        if (dataBinding.isEmpty() || componentId.isEmpty()) return null
+        return TemplateBinding(componentId = componentId, dataBinding = dataBinding)
+    }
+
+    private fun extractExplicitChildren(props: JsonObject): List<String> {
+        val children = props.getAsJsonObject("children") ?: return emptyList()
+        val explicitList = children.getAsJsonArray("explicitList") ?: return emptyList()
+        return explicitList.mapNotNull { runCatching { it.asString.trim() }.getOrNull() }
+            .filter { it.isNotEmpty() }
+    }
+
+    private fun buildComponentGraph(
+        components: Map<String, A2UIComponent>,
+    ): Map<String, ComponentNode> {
+        val graph = mutableMapOf<String, ComponentNode>()
+        for ((id, component) in components) {
+            val explicit = extractExplicitChildren(component.props)
+            val template = if (explicit.isEmpty()) extractTemplateBinding(component.props) else null
+            graph[id] = ComponentNode(explicitChildren = explicit, template = template)
+        }
+        return graph
+    }
+
+    private fun collectExplicitReachable(
+        startId: String?,
+        graph: Map<String, ComponentNode>,
+    ): Set<String> {
+        val start = startId?.trim()?.takeIf { it.isNotEmpty() } ?: return emptySet()
+        val visited = mutableSetOf<String>()
+        val stack = ArrayDeque<String>()
+        stack.add(start)
+        while (stack.isNotEmpty()) {
+            val id = stack.removeLast()
+            if (!visited.add(id)) continue
+            val children = graph[id]?.explicitChildren.orEmpty()
+            for (child in children) {
+                val trimmed = child.trim()
+                if (trimmed.isNotEmpty()) {
+                    stack.add(trimmed)
+                }
+            }
+        }
+        return visited
+    }
+
+    private fun collectTemplateBindings(
+        startId: String?,
+        graph: Map<String, ComponentNode>,
+    ): List<TemplateBinding> {
+        val start = startId?.trim()?.takeIf { it.isNotEmpty() } ?: return emptyList()
+        val visited = mutableSetOf<String>()
+        val stack = ArrayDeque<String>()
+        val bindings = mutableListOf<TemplateBinding>()
+        stack.add(start)
+        while (stack.isNotEmpty()) {
+            val id = stack.removeLast()
+            if (!visited.add(id)) continue
+            val node = graph[id] ?: continue
+            node.template?.let { bindings.add(it) }
+            for (child in node.explicitChildren) {
+                val trimmed = child.trim()
+                if (trimmed.isNotEmpty()) {
+                    stack.add(trimmed)
+                }
+            }
+        }
+        return bindings
+    }
+
+    private fun applyDefaultsToRoot(
+        root: MutableMap<String, Any?>,
+        defaults: List<BoundDefault>,
+    ): Boolean {
+        if (defaults.isEmpty()) return false
+        var mutated = false
+        for (defaultValue in defaults) {
+            if (setDefaultAtPath(root, defaultValue.path, defaultValue.value)) {
+                mutated = true
+            }
+        }
+        return mutated
+    }
+
+    private fun applyTemplateDefaults(
+        root: MutableMap<String, Any?>,
+        dataBinding: String,
+        defaults: List<BoundDefault>,
+    ): Boolean {
+        if (defaults.isEmpty()) return false
+        val resolved = A2UIJsonPointer.resolve(dataBinding, root) as? List<*> ?: return false
+        val mutableList = resolved.toMutableList()
+        var itemMutated = false
+
+        for (idx in mutableList.indices) {
+            val item = mutableList[idx]
+            val rootItem =
+                when (item) {
+                    is Map<*, *> -> toMutableStringMap(item)
+                    is List<*> -> item.toMutableList()
+                    else -> mutableMapOf("value" to item)
+                } ?: continue
+            val changed = applyDefaultsToContainer(rootItem, defaults)
+            if (changed) {
+                mutableList[idx] = rootItem
+                itemMutated = true
+            }
+        }
+
+        if (!itemMutated) return false
+        return setValueAtPath(root, dataBinding, mutableList)
+    }
+
+    private fun applyDefaultsToContainer(
+        root: Any,
+        defaults: List<BoundDefault>,
+    ): Boolean {
+        if (defaults.isEmpty()) return false
+        var mutated = false
+        for (defaultValue in defaults) {
+            if (setDefaultAtPath(root, defaultValue.path, defaultValue.value)) {
+                mutated = true
+            }
+        }
+        return mutated
+    }
+
+    private fun setDefaultAtPath(
+        root: Any,
+        pointer: String,
+        value: Any?,
+    ): Boolean {
+        if (pointer.isBlank()) return false
+        if (A2UIJsonPointer.resolve(pointer, root) != null) return false
+        return setValueAtPath(root, pointer, value)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun setValueAtPath(
+        root: Any,
+        pointer: String,
+        value: Any?,
+    ): Boolean {
+        val segments = A2UIJsonPointer.parse(pointer)
+        if (segments.isEmpty()) return false
+        var current: Any? = root
+        var parentMap: MutableMap<String, Any?>? = null
+        var parentList: MutableList<Any?>? = null
+        var parentKey: String? = null
+        var parentIndex: Int? = null
+
+        fun attach(newValue: Any) {
+            when {
+                parentMap != null && parentKey != null -> parentMap!![parentKey!!] = newValue
+                parentList != null && parentIndex != null -> parentList!![parentIndex!!] = newValue
+            }
+            current = newValue
+        }
+
+        for (i in segments.indices) {
+            val segment = segments[i]
+            val isLast = i == segments.lastIndex
+            when (current) {
+                is Map<*, *> -> {
+                    val map =
+                        if (current === root) {
+                            root as? MutableMap<String, Any?> ?: return false
+                        } else {
+                            toMutableStringMap(current) ?: return false
+                        }
+                    if (current !== map) {
+                        if (parentMap == null && parentList == null) return false
+                        attach(map)
+                    }
+                    if (isLast) {
+                        map[segment] = value
+                        return true
+                    }
+                    val nextSegment = segments[i + 1]
+                    val nextIsIndex = nextSegment.toIntOrNull() != null
+                    val existing = map[segment]
+                    val next =
+                        when (existing) {
+                            null -> if (nextIsIndex) mutableListOf<Any?>() else mutableMapOf<String, Any?>()
+                            is Map<*, *> -> toMutableStringMap(existing) ?: return false
+                            is List<*> -> toMutableList(existing) ?: return false
+                            else -> return false
+                        }
+                    map[segment] = next
+                    parentMap = map
+                    parentKey = segment
+                    parentList = null
+                    parentIndex = null
+                    current = next
+                }
+                is List<*> -> {
+                    val list =
+                        if (current === root) {
+                            root as? MutableList<Any?> ?: return false
+                        } else {
+                            toMutableList(current) ?: return false
+                        }
+                    if (current !== list) {
+                        if (parentMap == null && parentList == null) return false
+                        attach(list)
+                    }
+                    val idx = segment.toIntOrNull() ?: return false
+                    if (idx < 0) return false
+                    while (list.size <= idx) {
+                        list.add(null)
+                    }
+                    if (isLast) {
+                        list[idx] = value
+                        return true
+                    }
+                    val nextSegment = segments[i + 1]
+                    val nextIsIndex = nextSegment.toIntOrNull() != null
+                    val existing = list[idx]
+                    val next =
+                        when (existing) {
+                            null -> if (nextIsIndex) mutableListOf<Any?>() else mutableMapOf<String, Any?>()
+                            is Map<*, *> -> toMutableStringMap(existing) ?: return false
+                            is List<*> -> toMutableList(existing) ?: return false
+                            else -> return false
+                        }
+                    list[idx] = next
+                    parentList = list
+                    parentIndex = idx
+                    parentMap = null
+                    parentKey = null
+                    current = next
+                }
+                else -> return false
+            }
+        }
+        return false
+    }
+
+    private fun extractLiteralValue(obj: JsonObject): Any? {
+        obj.readString("literalString")?.let { return it }
+        obj.readString("valueString")?.let { return it }
+        obj.readDouble("literalNumber")?.let { return it }
+        obj.readDouble("valueNumber")?.let { return it }
+        obj.readBoolean("literalBoolean")?.let { return it }
+        obj.readBoolean("valueBoolean")?.let { return it }
+        obj.getAsJsonArray("literalArray")?.let { array ->
+            return array.map { parseLiteralElement(it) }
+        }
+        obj.getAsJsonArray("valueList")?.let { array ->
+            return array.map { parseLiteralElement(it) }
+        }
+        return null
+    }
+
+    private fun parseLiteralElement(element: JsonElement?): Any? {
+        if (element == null || element.isJsonNull) return null
+        if (element.isJsonPrimitive) {
+            val primitive = element.asJsonPrimitive
+            return when {
+                primitive.isBoolean -> primitive.asBoolean
+                primitive.isNumber -> primitive.asNumber.toDouble()
+                primitive.isString -> primitive.asString
+                else -> null
+            }
+        }
+        if (element.isJsonArray) {
+            return element.asJsonArray.map { parseLiteralElement(it) }
+        }
+        if (element.isJsonObject) {
+            val mapped = mutableMapOf<String, Any?>()
+            for ((k, v) in element.asJsonObject.entrySet()) {
+                mapped[k] = parseLiteralElement(v)
+            }
+            return mapped
+        }
+        return null
     }
 
     private fun applyDataModelUpdate(
@@ -130,7 +523,7 @@ object A2UIRuntimeReducer {
         }
         if (patch.isEmpty()) return current
         val root = current.dataModel.toMutableMap()
-        val target = ensurePath(root, path) ?: return current
+        val target = ensureMapAtPath(root, path) ?: return current
         target.putAll(patch)
         return current.copy(dataModel = root)
     }
@@ -204,45 +597,105 @@ object A2UIRuntimeReducer {
         return null
     }
 
-    private fun ensurePath(
+    private fun ensureMapAtPath(
         root: MutableMap<String, Any?>,
         path: String,
     ): MutableMap<String, Any?>? {
-        val segments =
-            path.split("/")
-                .map { it.trim() }
-                .filter { it.isNotEmpty() }
+        val segments = A2UIJsonPointer.parse(path)
         if (segments.isEmpty()) return root
-        var current: MutableMap<String, Any?> = root
-        for (segment in segments) {
-            val existing = current[segment]
-            val next =
-                when (existing) {
-                    is MutableMap<*, *> -> existing.entries.associate { it.key.toString() to it.value }.toMutableMap()
-                    is Map<*, *> -> existing.entries.associate { it.key.toString() to it.value }.toMutableMap()
-                    else -> null
+        var current: Any? = root
+        var parentMap: MutableMap<String, Any?>? = null
+        var parentList: MutableList<Any?>? = null
+        var parentKey: String? = null
+        var parentIndex: Int? = null
+
+        fun attach(newValue: Any) {
+            when {
+                parentMap != null && parentKey != null -> parentMap!![parentKey!!] = newValue
+                parentList != null && parentIndex != null -> parentList!![parentIndex!!] = newValue
+            }
+            current = newValue
+        }
+
+        for (i in segments.indices) {
+            val segment = segments[i]
+            val isLast = i == segments.lastIndex
+            when (current) {
+                is Map<*, *> -> {
+                    val map = if (current === root) root else toMutableStringMap(current) ?: return null
+                    if (current !== map) {
+                        attach(map)
+                    }
+                    val existing = map[segment]
+                    if (isLast) {
+                        val target = toMutableStringMap(existing) ?: mutableMapOf()
+                        map[segment] = target
+                        return target
+                    }
+                    val nextSegment = segments[i + 1]
+                    val nextIsIndex = nextSegment.toIntOrNull() != null
+                    val next =
+                        when (existing) {
+                            null -> if (nextIsIndex) mutableListOf<Any?>() else mutableMapOf<String, Any?>()
+                            is Map<*, *> -> toMutableStringMap(existing)!!
+                            is List<*> -> toMutableList(existing)!!
+                            else -> return null
+                        }
+                    map[segment] = next
+                    parentMap = map
+                    parentKey = segment
+                    parentList = null
+                    parentIndex = null
+                    current = next
                 }
-            if (next == null) {
-                val fresh = mutableMapOf<String, Any?>()
-                current[segment] = fresh
-                current = fresh
-            } else {
-                if (existing !is MutableMap<*, *>) {
-                    current[segment] = next
+                is List<*> -> {
+                    val list = toMutableList(current) ?: return null
+                    attach(list)
+                    val idx = segment.toIntOrNull() ?: return null
+                    if (idx < 0) return null
+                    while (list.size <= idx) {
+                        list.add(null)
+                    }
+                    val existing = list[idx]
+                    if (isLast) {
+                        val target = toMutableStringMap(existing) ?: mutableMapOf()
+                        list[idx] = target
+                        return target
+                    }
+                    val nextSegment = segments[i + 1]
+                    val nextIsIndex = nextSegment.toIntOrNull() != null
+                    val next =
+                        when (existing) {
+                            null -> if (nextIsIndex) mutableListOf<Any?>() else mutableMapOf<String, Any?>()
+                            is Map<*, *> -> toMutableStringMap(existing)!!
+                            is List<*> -> toMutableList(existing)!!
+                            else -> return null
+                        }
+                    list[idx] = next
+                    parentList = list
+                    parentIndex = idx
+                    parentMap = null
+                    parentKey = null
+                    current = next
                 }
-                current = next
+                else -> return null
             }
         }
-        return current
+        return null
     }
 
-    private fun countActions(message: A2UIMessage): Int {
-        var count = 0
-        if (message.beginRendering != null) count++
-        if (message.surfaceUpdate != null) count++
-        if (message.dataModelUpdate != null) count++
-        if (message.deleteSurface != null) count++
-        return count
+    private fun toMutableStringMap(value: Any?): MutableMap<String, Any?>? {
+        return when (value) {
+            is Map<*, *> -> value.entries.associate { it.key.toString() to it.value }.toMutableMap()
+            else -> null
+        }
+    }
+
+    private fun toMutableList(value: Any?): MutableList<Any?>? {
+        return when (value) {
+            is List<*> -> value.toMutableList()
+            else -> null
+        }
     }
 
     private fun logCatalogIdIfNeeded(
