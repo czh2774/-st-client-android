@@ -302,6 +302,7 @@ class CreatorAssistantListScreenTest {
             isNsfwHint: Boolean?,
             ageRatingHint: com.stproject.client.android.domain.model.AgeRating?,
             tags: List<String>?,
+            requireMetadata: Boolean,
         ): ContentAccessDecision {
             calls += 1
             return if (calls == 1) {

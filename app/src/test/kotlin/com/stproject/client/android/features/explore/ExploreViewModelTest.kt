@@ -58,6 +58,27 @@ class ExploreViewModelTest : BaseUnitTest() {
         }
     }
 
+    private class CapturingCharacterRepository : FakeCharacterRepository() {
+        var lastSort: String? = null
+        var lastTags: List<String>? = null
+        var lastSearch: String? = null
+
+        override suspend fun queryCharactersFiltered(
+            cursor: String?,
+            limit: Int?,
+            sortBy: String?,
+            isNsfw: Boolean?,
+            tags: List<String>?,
+            searchKeyword: String?,
+            gender: String?,
+        ): List<CharacterSummary> {
+            lastSort = sortBy
+            lastTags = tags
+            lastSearch = searchKeyword
+            return emptyList()
+        }
+    }
+
     private class DenyAccessUseCase(
         accessManager: ChatViewModelTest.AllowAllAccessManager,
     ) : ResolveContentAccessUseCase(
@@ -132,5 +153,38 @@ class ExploreViewModelTest : BaseUnitTest() {
 
             assertEquals(true, vm.uiState.value.accessError?.isNotBlank())
             collectJob.cancel()
+        }
+
+    @Test
+    fun `applyFilters sends sort and filters to repository`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val repo = CapturingCharacterRepository()
+            val vm =
+                ExploreViewModel(
+                    characterRepository = repo,
+                    resolveContentAccess =
+                        ResolveContentAccessUseCase(
+                            accessManager = ChatViewModelTest.AllowAllAccessManager(),
+                            characterRepository = repo,
+                        ),
+                    followCharacterUseCase =
+                        FollowCharacterUseCase(
+                            characterRepository = repo,
+                            resolveContentAccess =
+                                ResolveContentAccessUseCase(
+                                    accessManager = ChatViewModelTest.AllowAllAccessManager(),
+                                    characterRepository = repo,
+                                ),
+                        ),
+                )
+
+            vm.onSearchChanged("hero")
+            vm.onTagsChanged("fantasy, romance, fantasy")
+            vm.setSortBy("new")
+            advanceUntilIdle()
+
+            assertEquals("new", repo.lastSort)
+            assertEquals(listOf("fantasy", "romance"), repo.lastTags)
+            assertEquals("hero", repo.lastSearch)
         }
 }

@@ -175,6 +175,11 @@ class A2UIRuntimeReducerTest {
                     ),
             )
         val stateWithComponents = A2UIRuntimeReducer.reduce(A2UIRuntimeState(), surfaceMessage)
+        val stateWithRoot =
+            A2UIRuntimeReducer.reduce(
+                stateWithComponents,
+                A2UIMessage(beginRendering = A2UIBeginRendering(surfaceId = "s1", root = "parent")),
+            )
         val itemsArray = JsonParser.parseString("""[{"title":"Existing"},{}]""").asJsonArray
         val dataMessage =
             A2UIMessage(
@@ -191,7 +196,7 @@ class A2UIRuntimeReducerTest {
                     ),
             )
 
-        val next = A2UIRuntimeReducer.reduce(stateWithComponents, dataMessage)
+        val next = A2UIRuntimeReducer.reduce(stateWithRoot, dataMessage)
         val items = next.surfaces["s1"]?.dataModel?.get("items") as? List<*>
         val first = items?.getOrNull(0) as? Map<*, *>
         val second = items?.getOrNull(1) as? Map<*, *>
@@ -228,6 +233,11 @@ class A2UIRuntimeReducerTest {
                     ),
             )
         val stateWithComponents = A2UIRuntimeReducer.reduce(A2UIRuntimeState(), surfaceMessage)
+        val stateWithRoot =
+            A2UIRuntimeReducer.reduce(
+                stateWithComponents,
+                A2UIMessage(beginRendering = A2UIBeginRendering(surfaceId = "s1", root = "parent")),
+            )
         val itemsArray = JsonParser.parseString("""[{},{}]""").asJsonArray
         val dataMessage =
             A2UIMessage(
@@ -244,7 +254,7 @@ class A2UIRuntimeReducerTest {
                     ),
             )
 
-        val next = A2UIRuntimeReducer.reduce(stateWithComponents, dataMessage)
+        val next = A2UIRuntimeReducer.reduce(stateWithRoot, dataMessage)
         val items = next.surfaces["s1"]?.dataModel?.get("items") as? List<*>
         val first = items?.getOrNull(0) as? Map<*, *>
         val second = items?.getOrNull(1) as? Map<*, *>
